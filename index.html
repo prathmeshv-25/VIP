@@ -264,10 +264,13 @@
     <section id="section-admin" class="view-section">
       <div class="section-header">
         <div>
-          <h2><i class="fa-solid fa-chart-line"></i> Admin Dashboard</h2>
+          <h2><i class="fa-solid fa-chart-pie"></i> Admin Dashboard</h2>
           <p class="text-muted">Live event analytics & student enrollment registry</p>
         </div>
-        <div class="admin-quick-actions">
+        <div class="admin-quick-actions" style="display:flex; gap:0.5rem;">
+          <button id="open-add-event-modal-btn" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-plus"></i> Add New Event
+          </button>
           <button id="export-csv-btn" class="btn btn-outline-secondary btn-sm">
             <i class="fa-solid fa-file-csv"></i> Export CSV
           </button>
@@ -565,6 +568,51 @@
     </div>
   </div>
 
+  <!-- CREATE NEW EVENT MODAL FOR ADMIN -->
+  <div id="add-event-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="add-event-title">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="add-event-close-btn" aria-label="Close modal">&times;</button>
+      
+      <div class="modal-header">
+        <h3 id="add-event-title" style="color: var(--text-primary); margin-bottom: 0.25rem;">
+          <i class="fa-solid fa-calendar-plus" style="color: var(--accent-primary);"></i> Create New Event
+        </h3>
+        <p class="modal-subtitle">Add a new event and configure initial seat allocation.</p>
+      </div>
+
+      <form id="add-event-form">
+        <div class="modal-body">
+          <div id="add-event-alert" class="alert alert-danger hidden">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span id="add-event-alert-msg"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="new-event-name">Event Name <span class="required">*</span></label>
+            <input type="text" id="new-event-name" class="form-control" placeholder="e.g. AI Hackathon" required>
+          </div>
+
+          <div class="form-group">
+            <label for="new-event-date">Event Date <span class="required">*</span></label>
+            <input type="text" id="new-event-date" class="form-control" placeholder="e.g. 15 Sept 2026" required>
+          </div>
+
+          <div class="form-group">
+            <label for="new-event-seats">Total Seats Capacity <span class="required">*</span></label>
+            <input type="number" id="new-event-seats" class="form-control" min="1" max="5000" placeholder="e.g. 50" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" id="add-event-cancel-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="save-new-event-btn">
+            <i class="fa-solid fa-plus"></i> Save Event
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="footer-container">
       <p>PS4 Event Registration System &copy; 2026 | Built with Vanilla JS Predictable Logic</p>
@@ -579,3 +627,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+

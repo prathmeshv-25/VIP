@@ -243,6 +243,53 @@ function cancelRegistration(regId) {
   return true;
 }
 
+/**
+ * Create New Event (Admin feature)
+ */
+function addNewEvent(name, date, seatsCapacity) {
+  const nameClean = (name || "").trim();
+  const dateClean = (date || "").trim();
+  const seatsNum = parseInt(seatsCapacity, 10);
+
+  if (!nameClean) {
+    return { success: false, error: "Please enter an event name." };
+  }
+
+  if (!dateClean) {
+    return { success: false, error: "Please enter an event date." };
+  }
+
+  if (isNaN(seatsNum) || seatsNum <= 0) {
+    return { success: false, error: "Total seats capacity must be a number greater than 0." };
+  }
+
+  // Duplicate Event Name Check (Case-insensitive)
+  const isDuplicate = events.some(e => e.name.toLowerCase() === nameClean.toLowerCase());
+  if (isDuplicate) {
+    return { success: false, error: `An event named "${nameClean}" already exists.` };
+  }
+
+  // Generate Unique Event ID
+  const nextId = events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1;
+
+  const newEvent = {
+    id: nextId,
+    name: nameClean,
+    date: dateClean,
+    seats: seatsNum,
+    registered: 0
+  };
+
+  events.push(newEvent);
+  saveState();
+  renderAllViews();
+
+  showToast(`Event "${newEvent.name}" created successfully!`, "success");
+  logToTerminal(`Created new event "${newEvent.name}" (ID: ${newEvent.id}, Capacity: ${newEvent.seats}).`, "info");
+
+  return { success: true, event: newEvent };
+}
+
 
 // ==========================================
 // 3. UI RENDERING ENGINE
@@ -422,13 +469,16 @@ function renderAdminDashboard() {
 
   // Populate Admin Filter Dropdown
   const filterSelect = document.getElementById("table-filter-event");
-  if (filterSelect && filterSelect.options.length <= 1) {
+  if (filterSelect) {
+    const currentVal = filterSelect.value || "ALL";
+    filterSelect.innerHTML = '<option value="ALL">All Events</option>';
     events.forEach(e => {
       const opt = document.createElement("option");
       opt.value = e.id;
       opt.textContent = e.name;
       filterSelect.appendChild(opt);
     });
+    filterSelect.value = currentVal;
   }
 
   // Registrations Table
@@ -1077,6 +1127,57 @@ function setupThemeToggle() {
   });
 }
 
+// Add Event Modal Controls
+function setupAddEventModal() {
+  const modal = document.getElementById("add-event-modal");
+  const openBtn = document.getElementById("open-add-event-modal-btn");
+  const closeBtn = document.getElementById("add-event-close-btn");
+  const cancelBtn = document.getElementById("add-event-cancel-btn");
+  const form = document.getElementById("add-event-form");
+  const alertBox = document.getElementById("add-event-alert");
+  const alertMsg = document.getElementById("add-event-alert-msg");
+
+  const hideModal = () => {
+    if (modal) modal.classList.add("hidden");
+    if (alertBox) alertBox.classList.add("hidden");
+    if (form) form.reset();
+  };
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      if (modal) {
+        modal.classList.remove("hidden");
+        document.getElementById("new-event-name")?.focus();
+      }
+    });
+  }
+
+  if (closeBtn) closeBtn.addEventListener("click", hideModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", hideModal);
+
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("new-event-name")?.value;
+      const date = document.getElementById("new-event-date")?.value;
+      const seats = document.getElementById("new-event-seats")?.value;
+
+      const res = addNewEvent(name, date, seats);
+
+      if (!res.success) {
+        if (alertBox && alertMsg) {
+          alertMsg.textContent = res.error;
+          alertBox.classList.remove("hidden");
+        }
+        return;
+      }
+
+      hideModal();
+    });
+  }
+}
+
 // App Initialization
 document.addEventListener("DOMContentLoaded", function () {
   loadState();
@@ -1088,6 +1189,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   setupTabNavigation();
   setupFormHandler();
+  setupAddEventModal();
   setupThemeToggle();
 
   // Reset system button
