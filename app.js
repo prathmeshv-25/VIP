@@ -751,13 +751,13 @@ function applyRoleUI() {
   if (appShell) appShell.classList.remove("hidden");
 
   // Update header badge
-  if (roleBadge && roleBadgeText) {
+  if (roleBadge) {
     if (currentUserRole === "admin") {
       roleBadge.className = "role-badge role-admin";
-      roleBadgeText.innerHTML = '<i class="fa-solid fa-user-shield"></i> Admin';
+      roleBadge.innerHTML = '<i class="fa-solid fa-user-shield"></i> Admin';
     } else {
       roleBadge.className = "role-badge role-student";
-      roleBadgeText.innerHTML = '<i class="fa-solid fa-user-graduate"></i> Student';
+      roleBadge.innerHTML = '<i class="fa-solid fa-user-graduate"></i> Student';
     }
   }
 
