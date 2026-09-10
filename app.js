@@ -243,6 +243,21 @@ function cancelRegistration(regId) {
   return true;
 }
 
+function formatDateForDisplay(dateStr) {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    const year = parts[0];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+    if (monthIndex >= 0 && monthIndex < 12) {
+      return `${day} ${monthNames[monthIndex]} ${year}`;
+    }
+  }
+  return dateStr;
+}
+
 /**
  * Create New Event (Admin feature)
  */
@@ -256,7 +271,7 @@ function addNewEvent(name, date, seatsCapacity) {
   }
 
   if (!dateClean) {
-    return { success: false, error: "Please enter an event date." };
+    return { success: false, error: "Please select an event date from the calendar." };
   }
 
   if (isNaN(seatsNum) || seatsNum <= 0) {
@@ -269,13 +284,16 @@ function addNewEvent(name, date, seatsCapacity) {
     return { success: false, error: `An event named "${nameClean}" already exists.` };
   }
 
+  // Format Date for Display (e.g. 2026-09-15 -> 15 Sept 2026)
+  const formattedDate = formatDateForDisplay(dateClean);
+
   // Generate Unique Event ID
   const nextId = events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1;
 
   const newEvent = {
     id: nextId,
     name: nameClean,
-    date: dateClean,
+    date: formattedDate,
     seats: seatsNum,
     registered: 0
   };
