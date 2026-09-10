@@ -1010,20 +1010,23 @@ body {
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-md);
   padding: 1.25rem;
-  position: relative;
+}
+
+.receipt-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .receipt-badge {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  background-color: var(--accent-light);
+  background-color: rgba(99, 102, 241, 0.15);
   color: var(--accent-primary);
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.6rem;
   border-radius: var(--radius-sm);
+  border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 .receipt-row {
