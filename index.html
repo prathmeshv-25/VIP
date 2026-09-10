@@ -374,10 +374,10 @@
       <div class="section-header">
         <div>
           <h2><i class="fa-solid fa-bug-slash"></i> Edge Case & Bug Audit Suite</h2>
-          <p class="text-muted">Execute automated test macros for the 7 critical edge case scenarios specified in PS4.</p>
+          <p class="text-muted">Execute automated test macros for the 8 critical edge case scenarios specified in PS4.</p>
         </div>
         <button id="run-all-tests-btn" class="btn btn-primary">
-          <i class="fa-solid fa-play"></i> Run All 7 Audit Tests
+          <i class="fa-solid fa-play"></i> Run All 8 Audit Tests
         </button>
       </div>
 
@@ -470,6 +470,19 @@
           <div class="test-footer">
             <span class="test-status badge badge-secondary" id="test-status-7">Not Run</span>
             <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(7)">Run Test 7</button>
+          </div>
+        </div>
+
+        <!-- Test Case 8 -->
+        <div class="test-card" id="test-card-8">
+          <div class="test-header">
+            <span class="test-num">Test 8</span>
+            <h4>Validation Failure: Numeric/Special Chars in Name</h4>
+          </div>
+          <p class="test-desc">Submits form with digits or special characters in name. Verifies error triggers and state remains unchanged.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-8">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(8)">Run Test 8</button>
           </div>
         </div>
       </div>

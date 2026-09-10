@@ -119,6 +119,12 @@ function handleRegistrationSubmission(studentName, rollNumber, eventId) {
     return { success: false, error: "Please enter your name" };
   }
 
+  // Name Field Validation: Accept ONLY alphabetical characters and spaces
+  const nameRegex = /^[A-Za-z\s]+$/;
+  if (!nameRegex.test(nameClean)) {
+    return { success: false, error: "Invalid Name: Only letters and spaces are allowed" };
+  }
+
   if (!rollClean) {
     return { success: false, error: "Please enter roll number" };
   }
@@ -963,19 +969,33 @@ function runSingleTest(testNum) {
         renderAllViews();
       }
       break;
+
+    case 8: // Test 8: Validation Failure (Numeric/Special Chars in Name)
+      {
+        const initialCount = registrations.length;
+        const resNumeric = handleRegistrationSubmission("John123", "23TEST08", 1);
+        const resSpecial = handleRegistrationSubmission("Alex@Dev", "23TEST08", 1);
+
+        if (!resNumeric.success && !resSpecial.success && registrations.length === initialCount) {
+          updateTestStatus(8, true, `Blocked invalid names ("${resNumeric.error}") without state mutation.`);
+        } else {
+          updateTestStatus(8, false, "Numeric or special characters in name were accepted!");
+        }
+      }
+      break;
   }
 }
 
 function runAllTests() {
   resetSystemData();
-  logToTerminal("=== EXECUTING COMPLETE 7-PART BUG AUDIT ===", "warn");
+  logToTerminal("=== EXECUTING COMPLETE 8-PART BUG AUDIT ===", "warn");
   
-  [1, 2, 3, 4, 5, 6, 7].forEach((testNum, idx) => {
+  [1, 2, 3, 4, 5, 6, 7, 8].forEach((testNum, idx) => {
     setTimeout(() => {
       runSingleTest(testNum);
-      if (idx === 6) {
-        logToTerminal("=== ALL 7 AUDIT TESTS COMPLETED PERFECTLY ===", "info");
-        showToast("Audit completed! All 7 tests executed.", "success");
+      if (idx === 7) {
+        logToTerminal("=== ALL 8 AUDIT TESTS COMPLETED PERFECTLY ===", "info");
+        showToast("Audit completed! All 8 tests executed.", "success");
       }
     }, idx * 250);
   });
