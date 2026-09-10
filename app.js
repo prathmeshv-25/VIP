@@ -75,6 +75,40 @@ function loadState() {
   } else {
     registrations = [];
   }
+
+  syncStateIntegrity();
+}
+
+// Single Source of Truth Synchronization Helper
+function syncStateIntegrity() {
+  events.forEach(event => {
+    const eventRegs = registrations.filter(r => r.eventId === event.id);
+
+    // If event.registered exceeds stored registrations count, auto-generate missing registration records
+    if (event.registered > eventRegs.length) {
+      const missingCount = event.registered - eventRegs.length;
+      const startNum = eventRegs.length + 1;
+
+      for (let i = 0; i < missingCount; i++) {
+        const num = startNum + i;
+        registrations.push({
+          id: `REG-${event.id}-${1000 + num}`,
+          eventId: event.id,
+          eventName: event.name,
+          eventDate: event.date,
+          studentName: `Registered Student ${num}`,
+          rollNumber: `23ROLL${String(num).padStart(3, '0')}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " (System Seed)",
+          seatsLeftAfter: event.seats - num
+        });
+      }
+    } else if (event.registered < eventRegs.length) {
+      // Synchronize registered count to match actual registration array length
+      event.registered = eventRegs.length;
+    }
+  });
+
+  saveState();
 }
 
 // Save Current State to LocalStorage
@@ -865,7 +899,7 @@ function runSingleTest(testNum) {
         const targetEvent = events.find(e => e.id === 2);
         // Fill event until 1 seat left
         targetEvent.registered = targetEvent.seats - 1;
-        saveState();
+        syncStateIntegrity();
         renderAllViews();
 
         const beforeAvailable = getAvailableSeats(targetEvent); // 1
@@ -885,7 +919,7 @@ function runSingleTest(testNum) {
       {
         const fullEvent = events.find(e => e.id === 2); // Event 2 is full from Test 2
         fullEvent.registered = fullEvent.seats; // Force 100% full
-        saveState();
+        syncStateIntegrity();
         renderAllViews();
 
         const initialRegCount = fullEvent.registered;
