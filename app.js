@@ -19,6 +19,7 @@ const INITIAL_EVENTS = [
     id: 1,
     name: "Code Clash",
     date: "10 Sept 2026",
+    rawDate: "2026-09-10",
     seats: 30,
     registered: 0
   },
@@ -26,6 +27,7 @@ const INITIAL_EVENTS = [
     id: 2,
     name: "Web Warfare",
     date: "10 Sept 2026",
+    rawDate: "2026-09-10",
     seats: 25,
     registered: 0
   },
@@ -33,6 +35,7 @@ const INITIAL_EVENTS = [
     id: 3,
     name: "Tech Quiz",
     date: "10 Sept 2026",
+    rawDate: "2026-09-10",
     seats: 40,
     registered: 0
   }
@@ -246,16 +249,42 @@ function cancelRegistration(regId) {
 function formatDateForDisplay(dateStr) {
   if (!dateStr) return "";
   const parts = dateStr.split("-");
-  if (parts.length === 3 && parts[0].length === 4) {
-    const year = parts[0];
-    const monthIndex = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
+  if (parts.length === 3) {
+    let year, monthIndex, day;
+    if (parts[0].length === 4) {
+      year = parts[0];
+      monthIndex = parseInt(parts[1], 10) - 1;
+      day = parseInt(parts[2], 10);
+    } else if (parts[2].length === 4) {
+      day = parseInt(parts[0], 10);
+      monthIndex = parseInt(parts[1], 10) - 1;
+      year = parts[2];
+    }
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
-    if (monthIndex >= 0 && monthIndex < 12) {
+    if (monthIndex >= 0 && monthIndex < 12 && !isNaN(day) && day > 0) {
       return `${day} ${monthNames[monthIndex]} ${year}`;
     }
   }
   return dateStr;
+}
+
+function getRawDate(event) {
+  if (event && event.rawDate) return event.rawDate;
+  if (event && event.date) {
+    const parts = event.date.split(" ");
+    if (parts.length === 3) {
+      const day = parts[0].padStart(2, "0");
+      const monthStr = parts[1];
+      const year = parts[2];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+      const mIdx = monthNames.findIndex(m => m.toLowerCase() === monthStr.toLowerCase());
+      if (mIdx !== -1) {
+        const month = String(mIdx + 1).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+    }
+  }
+  return "";
 }
 
 /**
@@ -294,6 +323,7 @@ function addNewEvent(name, date, seatsCapacity) {
     id: nextId,
     name: nameClean,
     date: formattedDate,
+    rawDate: dateClean,
     seats: seatsNum,
     registered: 0
   };
@@ -306,6 +336,164 @@ function addNewEvent(name, date, seatsCapacity) {
   logToTerminal(`Created new event "${newEvent.name}" (ID: ${newEvent.id}, Capacity: ${newEvent.seats}).`, "info");
 
   return { success: true, event: newEvent };
+}
+
+/**
+ * Edit Event (Admin feature - Update)
+ */
+function editEvent(id, name, date, seatsCapacity) {
+  const nameClean = (name || "").trim();
+  const dateClean = (date || "").trim();
+  const seatsNum = parseInt(seatsCapacity, 10);
+
+  const targetId = parseInt(id, 10);
+  const event = events.find(e => e.id === targetId);
+  if (!event) {
+    return { success: false, error: "Event not found." };
+  }
+
+  if (!nameClean) {
+    return { success: false, error: "Please enter an event name." };
+  }
+
+  if (!dateClean) {
+    return { success: false, error: "Please select an event date from the calendar." };
+  }
+
+  if (isNaN(seatsNum) || seatsNum <= 0) {
+    return { success: false, error: "Total seats capacity must be a number greater than 0." };
+  }
+
+  if (seatsNum < event.registered) {
+    return { success: false, error: `Capacity cannot be reduced below current registered attendees (${event.registered}).` };
+  }
+
+  // Duplicate Event Name Check (excluding current event)
+  const isDuplicate = events.some(e => e.id !== targetId && e.name.toLowerCase() === nameClean.toLowerCase());
+  if (isDuplicate) {
+    return { success: false, error: `An event named "${nameClean}" already exists.` };
+  }
+
+  const oldName = event.name;
+  const formattedDate = formatDateForDisplay(dateClean);
+
+  event.name = nameClean;
+  event.date = formattedDate;
+  event.rawDate = dateClean;
+  event.seats = seatsNum;
+
+  // Sync event name in active student registrations if renamed
+  if (oldName !== nameClean) {
+    registrations.forEach(r => {
+      if (r.eventId == targetId) {
+        r.eventName = nameClean;
+      }
+    });
+  }
+
+  saveState();
+  renderAllViews();
+
+  showToast(`Event "${event.name}" updated successfully!`, "success");
+  logToTerminal(`Updated event ID ${event.id}: "${event.name}", Date=${event.date}, Seats=${event.seats}.`, "info");
+
+  return { success: true, event };
+}
+
+/**
+ * Delete Event (Admin feature - Delete)
+ */
+function deleteEvent(id) {
+  const targetId = parseInt(id, 10);
+  const eventIndex = events.findIndex(e => e.id === targetId);
+  if (eventIndex === -1) {
+    return { success: false, error: "Event not found." };
+  }
+
+  const eventName = events[eventIndex].name;
+  events.splice(eventIndex, 1);
+
+  // Remove corresponding student registrations
+  const initialRegCount = registrations.length;
+  registrations = registrations.filter(r => r.eventId != targetId);
+  const removedRegs = initialRegCount - registrations.length;
+
+  saveState();
+  renderAllViews();
+
+  showToast(`Event "${eventName}" deleted successfully.`, "warning");
+  logToTerminal(`Deleted event "${eventName}" (ID: ${targetId}). Removed ${removedRegs} associated registration(s).`, "warn");
+
+  return { success: true };
+}
+
+/**
+ * Modal Helper Triggers for Admin Event CRUD
+ */
+function openCreateEventModal() {
+  const modal = document.getElementById("add-event-modal");
+  const editIdInput = document.getElementById("edit-event-id");
+  const titleEl = document.getElementById("add-event-title");
+  const subtitleEl = document.getElementById("add-event-subtitle");
+  const submitBtn = document.getElementById("save-new-event-btn");
+  const alertBox = document.getElementById("add-event-alert");
+  const form = document.getElementById("add-event-form");
+
+  if (!modal) return;
+
+  if (form) form.reset();
+  if (editIdInput) editIdInput.value = "";
+  if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-calendar-plus" style="color: var(--accent-primary);"></i> Create New Event';
+  if (subtitleEl) subtitleEl.textContent = "Add a new event and configure initial seat allocation.";
+  if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Save Event';
+  if (alertBox) alertBox.classList.add("hidden");
+
+  modal.classList.remove("hidden");
+  document.getElementById("new-event-name")?.focus();
+}
+
+function openEditEventModal(id) {
+  const targetId = parseInt(id, 10);
+  const event = events.find(e => e.id === targetId);
+  if (!event) return;
+
+  const modal = document.getElementById("add-event-modal");
+  const editIdInput = document.getElementById("edit-event-id");
+  const titleEl = document.getElementById("add-event-title");
+  const subtitleEl = document.getElementById("add-event-subtitle");
+  const submitBtn = document.getElementById("save-new-event-btn");
+  const alertBox = document.getElementById("add-event-alert");
+
+  if (!modal) return;
+
+  if (editIdInput) editIdInput.value = event.id;
+  if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-pen-to-square" style="color: var(--accent-primary);"></i> Edit Event Details';
+  if (subtitleEl) subtitleEl.textContent = "Update event name, schedule, or total seats capacity.";
+  if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Update Event';
+  if (alertBox) alertBox.classList.add("hidden");
+
+  document.getElementById("new-event-name").value = event.name;
+  document.getElementById("new-event-date").value = getRawDate(event);
+  document.getElementById("new-event-seats").value = event.seats;
+
+  modal.classList.remove("hidden");
+  document.getElementById("new-event-name")?.focus();
+}
+
+function confirmDeleteEvent(id) {
+  const targetId = parseInt(id, 10);
+  const event = events.find(e => e.id === targetId);
+  if (!event) return;
+
+  const regCount = registrations.filter(r => r.eventId == targetId).length;
+  let confirmMsg = `Are you sure you want to delete event "${event.name}"?`;
+  if (regCount > 0) {
+    confirmMsg += `\n\nWARNING: There are ${regCount} student registration(s) for this event. Deleting it will also cancel those registrations!`;
+  }
+
+  if (confirm(confirmMsg)) {
+    deleteEvent(targetId);
+  }
 }
 
 
@@ -475,10 +663,18 @@ function renderAdminDashboard() {
           </span>
         </div>
         <div class="admin-stats-line">
-          ${e.seats} Total | ${e.registered} Registered | ${avail} Available
+          <i class="fa-regular fa-calendar-days"></i> ${escapeHtml(e.date || 'TBD')} &nbsp;|&nbsp; ${e.seats} Seats &nbsp;|&nbsp; ${e.registered} Registered
         </div>
-        <div class="seats-progress-bar" style="height:5px;">
+        <div class="seats-progress-bar" style="height:6px; margin-bottom: 0.75rem;">
           <div class="progress-fill ${isFull ? 'full' : ''}" style="width: ${Math.round((e.registered / e.seats) * 100)}%"></div>
+        </div>
+        <div class="admin-event-actions" style="display:flex; gap:0.5rem; justify-content:flex-end;">
+          <button class="btn btn-sm btn-outline-secondary" onclick="openEditEventModal(${e.id})" title="Edit event details">
+            <i class="fa-solid fa-pen-to-square"></i> Edit
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteEvent(${e.id})" title="Delete event">
+            <i class="fa-solid fa-trash-can"></i> Delete
+          </button>
         </div>
       `;
       breakdownGrid.appendChild(box);
@@ -1163,10 +1359,7 @@ function setupAddEventModal() {
 
   if (openBtn) {
     openBtn.addEventListener("click", () => {
-      if (modal) {
-        modal.classList.remove("hidden");
-        document.getElementById("new-event-name")?.focus();
-      }
+      openCreateEventModal();
     });
   }
 
@@ -1177,11 +1370,17 @@ function setupAddEventModal() {
     form.addEventListener("submit", (e) => {
       e.preventDefault();
 
+      const editId = document.getElementById("edit-event-id")?.value;
       const name = document.getElementById("new-event-name")?.value;
       const date = document.getElementById("new-event-date")?.value;
       const seats = document.getElementById("new-event-seats")?.value;
 
-      const res = addNewEvent(name, date, seats);
+      let res;
+      if (editId) {
+        res = editEvent(editId, name, date, seats);
+      } else {
+        res = addNewEvent(name, date, seats);
+      }
 
       if (!res.success) {
         if (alertBox && alertMsg) {

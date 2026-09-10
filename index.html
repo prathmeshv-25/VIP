@@ -444,10 +444,11 @@
         <h3 id="add-event-title" style="color: var(--text-primary); margin-bottom: 0.25rem;">
           <i class="fa-solid fa-calendar-plus" style="color: var(--accent-primary);"></i> Create New Event
         </h3>
-        <p class="modal-subtitle">Add a new event and configure initial seat allocation.</p>
+        <p class="modal-subtitle" id="add-event-subtitle">Add a new event and configure initial seat allocation.</p>
       </div>
 
       <form id="add-event-form">
+        <input type="hidden" id="edit-event-id" value="">
         <div class="modal-body">
           <div id="add-event-alert" class="alert alert-danger hidden">
             <i class="fa-solid fa-circle-exclamation"></i>
