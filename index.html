@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventHub — PS4 Seat Management & Registration System</title>
+  <meta name="description" content="Bug-free, single-source-of-truth event registration and seat management system for tech events.">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+
+  <!-- ============================================ -->
+  <!-- ENTRY / LOGIN SCREEN (shown when no role set) -->
+  <!-- ============================================ -->
+  <div id="entry-screen" class="entry-screen">
+    <div class="entry-card">
+      <div class="entry-brand">
+        <div class="brand-icon brand-icon-lg">
+          <i class="fa-solid fa-ticket"></i>
+        </div>
+        <h1>EventHub <span class="badge-ps4">PS4</span></h1>
+        <p class="text-muted">Event Registration & Seat Management System</p>
+      </div>
+
+      <div class="entry-options">
+        <button id="login-student-btn" class="entry-btn student-btn">
+          <div class="entry-btn-icon">
+            <i class="fa-solid fa-user-graduate"></i>
+          </div>
+          <div class="entry-btn-text">
+            <strong>Continue as Student</strong>
+            <small>Browse events, register & book seats</small>
+          </div>
+          <i class="fa-solid fa-arrow-right entry-arrow"></i>
+        </button>
+
+        <div class="entry-divider"><span>or</span></div>
+
+        <button id="login-admin-btn" class="entry-btn admin-btn">
+          <div class="entry-btn-icon">
+            <i class="fa-solid fa-user-shield"></i>
+          </div>
+          <div class="entry-btn-text">
+            <strong>Admin Login</strong>
+            <small>Dashboard, analytics & audit tools</small>
+          </div>
+          <i class="fa-solid fa-arrow-right entry-arrow"></i>
+        </button>
+      </div>
+
+      <!-- Admin Password Prompt (hidden by default) -->
+      <div id="admin-password-box" class="admin-password-box hidden">
+        <label for="admin-password-input">
+          <i class="fa-solid fa-lock"></i> Enter Admin Password
+        </label>
+        <div class="password-input-row">
+          <input 
+            type="password" 
+            id="admin-password-input" 
+            class="form-control" 
+            placeholder="Password" 
+            autocomplete="off"
+          >
+          <button id="admin-password-submit" class="btn btn-primary">
+            <i class="fa-solid fa-right-to-bracket"></i> Login
+          </button>
+        </div>
+        <div id="admin-password-error" class="password-error hidden">
+          <i class="fa-solid fa-circle-xmark"></i> Incorrect password. Try again.
+        </div>
+        <button id="admin-password-cancel" class="btn-text-action" style="margin-top:0.5rem;">
+          <i class="fa-solid fa-arrow-left"></i> Back
+        </button>
+      </div>
+
+      <p class="entry-footer-text">Single Source of Truth &middot; Vanilla JS &middot; Zero Dependencies</p>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- APP SHELL (hidden until role is selected)    -->
+  <!-- ============================================ -->
+  <div id="app-shell" class="hidden">
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-ticket"></i>
+        </div>
+        <div class="brand-text">
+          <h1>EventHub <span class="badge-ps4">PS4 Edition</span></h1>
+          <p class="subtitle">Single Source of Truth Seat Booking System</p>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="catalog" data-role="student" id="tab-catalog" role="tab">
+          <i class="fa-solid fa-calendar-days"></i> Events
+        </button>
+        <button class="tab-btn" data-tab="register" data-role="student" id="tab-register" role="tab">
+          <i class="fa-solid fa-user-plus"></i> Register
+        </button>
+        <button class="tab-btn" data-tab="admin" data-role="admin" id="tab-admin" role="tab">
+          <i class="fa-solid fa-chart-pie"></i> Admin Dashboard
+        </button>
+        <button class="tab-btn highlight-tab" data-tab="judge-panel" data-role="admin" id="tab-judge" role="tab">
+          <i class="fa-solid fa-vial-circle-check"></i> Bug Audit Panel
+        </button>
+      </nav>
+
+      <div class="header-actions">
+        <span id="role-badge" class="role-badge">
+          <i class="fa-solid fa-user"></i> <span id="role-badge-text">Student</span>
+        </span>
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
+          <i class="fa-solid fa-sun"></i>
+        </button>
+        <button id="reset-system-btn" class="btn btn-outline-danger btn-sm" title="Reset all data to default">
+          <i class="fa-solid fa-rotate-left"></i> Reset System
+        </button>
+        <button id="logout-btn" class="btn btn-outline-secondary btn-sm" title="Logout and switch role">
+          <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    
+    <!-- SECTION 1: EVENT CATALOG (PHASE 2) -->
+    <section id="section-catalog" class="view-section active">
+      <div class="section-header">
+        <div>
+          <h2>Available Events</h2>
+          <p class="text-muted">Browse upcoming events and check real-time seat availability.</p>
+        </div>
+        <div class="quick-stats-pills">
+          <span class="pill pill-primary"><i class="fa-solid fa-layer-group"></i> Total Events: <strong id="stat-total-events">3</strong></span>
+          <span class="pill pill-success"><i class="fa-solid fa-chair"></i> Total Seats Available: <strong id="stat-total-available">95</strong></span>
+        </div>
+      </div>
+
+      <div id="events-grid" class="events-grid">
+        <!-- Event Cards are dynamically rendered by app.js -->
+      </div>
+    </section>
+
+    <!-- SECTION 2: REGISTRATION FORM (PHASE 3 & 4) -->
+    <section id="section-register" class="view-section">
+      <div class="form-container-wrapper">
+        <div class="form-card">
+          <div class="form-card-header">
+            <div class="form-title">
+              <i class="fa-solid fa-id-card"></i>
+              <h2>Register for Event</h2>
+            </div>
+            <p class="text-muted">Fill in your details accurately to book your seat.</p>
+          </div>
+
+          <!-- Alert banner inside form for validation errors -->
+          <div id="form-alert" class="alert alert-danger hidden" role="alert">
+            <i class="fa-solid fa-triangle-exclamation alert-icon"></i>
+            <span id="form-alert-msg">Error message goes here</span>
+          </div>
+
+          <form id="registration-form" novalidate>
+            <div class="form-group">
+              <label for="student-name">
+                <i class="fa-solid fa-user"></i> Full Name <span class="required">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="student-name" 
+                name="studentName" 
+                class="form-control" 
+                placeholder="e.g. Prathmesh V" 
+                autocomplete="name"
+                required
+              >
+              <small class="form-hint">Enter your official full name</small>
+            </div>
+
+            <div class="form-group">
+              <label for="roll-number">
+                <i class="fa-solid fa-hashtag"></i> Roll Number <span class="required">*</span>
+              </label>
+              <input 
+                type="text" 
+                id="roll-number" 
+                name="rollNumber" 
+                class="form-control" 
+                placeholder="e.g. 23IT001" 
+                autocomplete="off"
+                required
+              >
+              <small class="form-hint">Format: College Roll / Student ID</small>
+            </div>
+
+            <div class="form-group">
+              <label for="event-select">
+                <i class="fa-solid fa-calendar-check"></i> Select Event <span class="required">*</span>
+              </label>
+              <select id="event-select" name="eventId" class="form-control select-control" required>
+                <option value="">-- Choose an Event --</option>
+                <!-- Populated dynamically -->
+              </select>
+              <div id="selected-event-info" class="selected-event-info hidden">
+                <span id="selected-seats-badge" class="badge">--</span>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="submit-reg-btn" class="btn btn-primary btn-block btn-lg">
+                <span class="btn-text"><i class="fa-solid fa-circle-check"></i> Register Now</span>
+                <span class="btn-spinner hidden"><i class="fa-solid fa-circle-notch fa-spin"></i> Processing...</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Form Info Sidebar -->
+        <div class="form-sidebar-card">
+          <h3><i class="fa-solid fa-shield-halved"></i> Seat Guarantee Policy</h3>
+          <ul class="policy-list">
+            <li>
+              <i class="fa-solid fa-check text-success"></i>
+              <div>
+                <strong>Single Source of Truth</strong>
+                <p>Available seats are strictly derived from <code>totalSeats - registeredCount</code>.</p>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-lock text-primary"></i>
+              <div>
+                <strong>Double-Click Protected</strong>
+                <p>Concurrent clicks are locked instantly to avoid multiple seat deductions.</p>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-ban text-danger"></i>
+              <div>
+                <strong>Strict Overbooking Guard</strong>
+                <p>If an event reaches 0 seats, form submissions are rejected at the JS core level.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: ADMIN DASHBOARD (PHASE 6) -->
+    <section id="section-admin" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2><i class="fa-solid fa-chart-line"></i> Admin Dashboard</h2>
+          <p class="text-muted">Live event analytics & student enrollment registry</p>
+        </div>
+        <div class="admin-quick-actions">
+          <button id="export-csv-btn" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-file-csv"></i> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Key Metrics Overview Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon primary">
+            <i class="fa-solid fa-calendar"></i>
+          </div>
+          <div class="metric-details">
+            <span class="metric-title">Total Events</span>
+            <span class="metric-value" id="admin-metric-events">3</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon info">
+            <i class="fa-solid fa-users"></i>
+          </div>
+          <div class="metric-details">
+            <span class="metric-title">Total Capacity</span>
+            <span class="metric-value" id="admin-metric-capacity">95</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon success">
+            <i class="fa-solid fa-user-check"></i>
+          </div>
+          <div class="metric-details">
+            <span class="metric-title">Total Registered</span>
+            <span class="metric-value" id="admin-metric-registered">0</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-icon warning">
+            <i class="fa-solid fa-couch"></i>
+          </div>
+          <div class="metric-details">
+            <span class="metric-title">Total Available</span>
+            <span class="metric-value" id="admin-metric-available">95</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Event Seat Breakdown Section -->
+      <div class="admin-card mb-4">
+        <div class="card-header-flex">
+          <h3><i class="fa-solid fa-list-check"></i> Event Breakdown & Seat Status</h3>
+          <small class="text-muted">Derived from core events array</small>
+        </div>
+        <div id="admin-events-list" class="admin-events-grid">
+          <!-- Rendered by app.js -->
+        </div>
+      </div>
+
+      <!-- Registrations Data Table -->
+      <div class="admin-card">
+        <div class="card-header-flex">
+          <h3><i class="fa-solid fa-table-list"></i> Student Registrations</h3>
+          <div class="table-controls">
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="table-search" placeholder="Search name or roll no..." class="form-control form-control-sm">
+            </div>
+            <select id="table-filter-event" class="form-control form-control-sm">
+              <option value="ALL">All Events</option>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Registration ID</th>
+                <th>Student Name</th>
+                <th>Roll No</th>
+                <th>Event Name</th>
+                <th>Registered At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="registrations-table-body">
+              <!-- Rendered dynamically by app.js -->
+            </tbody>
+          </table>
+        </div>
+        <div id="empty-table-state" class="empty-state hidden">
+          <i class="fa-regular fa-folder-open empty-icon"></i>
+          <p>No registrations found matching your criteria.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: BUG AUDIT & EDGE-CASE TEST PANEL (PHASE 7 & 9) -->
+    <section id="section-judge-panel" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2><i class="fa-solid fa-bug-slash"></i> Edge Case & Bug Audit Suite</h2>
+          <p class="text-muted">Execute automated test macros for the 7 critical edge case scenarios specified in PS4.</p>
+        </div>
+        <button id="run-all-tests-btn" class="btn btn-primary">
+          <i class="fa-solid fa-play"></i> Run All 7 Audit Tests
+        </button>
+      </div>
+
+      <div class="test-suite-grid">
+        <!-- Test Case 1 -->
+        <div class="test-card" id="test-card-1">
+          <div class="test-header">
+            <span class="test-num">Test 1</span>
+            <h4>Normal Registration</h4>
+          </div>
+          <p class="test-desc">Registers a valid student and verifies seat count decrements by 1 (e.g. 30 &rarr; 29).</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-1">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(1)">Run Test 1</button>
+          </div>
+        </div>
+
+        <!-- Test Case 2 -->
+        <div class="test-card" id="test-card-2">
+          <div class="test-header">
+            <span class="test-num">Test 2</span>
+            <h4>Last Seat Booking</h4>
+          </div>
+          <p class="test-desc">Simulates bookings until only 1 seat remains, then books it (1 &rarr; 0) and verifies button disables.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-2">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(2)">Run Test 2</button>
+          </div>
+        </div>
+
+        <!-- Test Case 3 -->
+        <div class="test-card" id="test-card-3">
+          <div class="test-header">
+            <span class="test-num">Test 3</span>
+            <h4>Full Event Overbooking Guard</h4>
+          </div>
+          <p class="test-desc">Attempts to submit a registration for a 0-seat event. Verifies execution is blocked and rejected.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-3">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(3)">Run Test 3</button>
+          </div>
+        </div>
+
+        <!-- Test Case 4 -->
+        <div class="test-card" id="test-card-4">
+          <div class="test-header">
+            <span class="test-num">Test 4</span>
+            <h4>Empty Name Validation</h4>
+          </div>
+          <p class="test-desc">Submits form with empty name. Verifies error banner triggers and seat count does not change.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-4">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(4)">Run Test 4</button>
+          </div>
+        </div>
+
+        <!-- Test Case 5 -->
+        <div class="test-card" id="test-card-5">
+          <div class="test-header">
+            <span class="test-num">Test 5</span>
+            <h4>Empty Roll Number Validation</h4>
+          </div>
+          <p class="test-desc">Submits form with empty roll number. Verifies error message triggers and seat count remains unchanged.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-5">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(5)">Run Test 5</button>
+          </div>
+        </div>
+
+        <!-- Test Case 6 -->
+        <div class="test-card" id="test-card-6">
+          <div class="test-header">
+            <span class="test-num">Test 6</span>
+            <h4>Double-Click Race Condition</h4>
+          </div>
+          <p class="test-desc">Fires 2 rapid consecutive form submissions within 5ms. Verifies only 1 registration is created.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-6">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(6)">Run Test 6</button>
+          </div>
+        </div>
+
+        <!-- Test Case 7 -->
+        <div class="test-card" id="test-card-7">
+          <div class="test-header">
+            <span class="test-num">Test 7</span>
+            <h4>Multiple Events Isolation</h4>
+          </div>
+          <p class="test-desc">Registers Student A for Code Clash and Student B for Web Warfare. Verifies counts decrement independently.</p>
+          <div class="test-footer">
+            <span class="test-status badge badge-secondary" id="test-status-7">Not Run</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(7)">Run Test 7</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test Log Terminal -->
+      <div class="test-log-terminal">
+        <div class="terminal-header">
+          <span><i class="fa-solid fa-terminal"></i> Audit Execution Log</span>
+          <button class="btn-text-action" id="clear-terminal-btn"><i class="fa-solid fa-eraser"></i> Clear Log</button>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <p class="terminal-line text-muted">> Audit Suite initialized. Click "Run All 7 Audit Tests" to begin automated verification.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CONFIRMATION RECEIPT MODAL (PHASE 5) -->
+  <div id="confirmation-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <button class="modal-close-btn" id="modal-close-icon" aria-label="Close modal">&times;</button>
+      
+      <div class="modal-header success">
+        <div class="success-checkmark-wrapper">
+          <i class="fa-solid fa-circle-check success-icon"></i>
+        </div>
+        <h3 id="modal-title">REGISTRATION SUCCESSFUL</h3>
+        <p class="modal-subtitle">Your seat has been reserved and confirmed in the system.</p>
+      </div>
+
+      <div class="modal-body">
+        <div class="receipt-box">
+          <div class="receipt-badge" id="receipt-id">REG-1001</div>
+          
+          <div class="receipt-row">
+            <span class="receipt-label"><i class="fa-solid fa-user"></i> Student Name:</span>
+            <strong class="receipt-value" id="receipt-name">Prathmesh V</strong>
+          </div>
+
+          <div class="receipt-row">
+            <span class="receipt-label"><i class="fa-solid fa-hashtag"></i> Roll Number:</span>
+            <strong class="receipt-value" id="receipt-roll">23ITxxx</strong>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="receipt-row">
+            <span class="receipt-label"><i class="fa-solid fa-calendar"></i> Event:</span>
+            <strong class="receipt-value text-primary" id="receipt-event">Code Clash</strong>
+          </div>
+
+          <div class="receipt-row">
+            <span class="receipt-label"><i class="fa-solid fa-clock"></i> Date:</span>
+            <span class="receipt-value" id="receipt-date">10 Sept 2026</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="receipt-status-banner">
+            <span>Seat Status:</span>
+            <strong id="receipt-seats-left" class="highlight-seats">22 seats remaining</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="modal-print-btn" class="btn btn-outline-secondary">
+          <i class="fa-solid fa-print"></i> Print Receipt
+        </button>
+        <button id="modal-done-btn" class="btn btn-primary">
+          <i class="fa-solid fa-check"></i> Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p>PS4 Event Registration System &copy; 2026 | Built with Vanilla JS Predictable Logic</p>
+      <div class="footer-links">
+        <span class="status-indicator online"></span> Source of Truth: Active
+      </div>
+    </div>
+  </footer>
+
+  </div><!-- END #app-shell -->
+
+  <script src="app.js"></script>
+</body>
+</html>
