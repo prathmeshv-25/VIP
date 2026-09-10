@@ -1208,10 +1208,4 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("table-search")?.addEventListener("input", renderRegistrationsTable);
   document.getElementById("table-filter-event")?.addEventListener("change", renderRegistrationsTable);
   document.getElementById("export-csv-btn")?.addEventListener("click", exportRegistrationsCSV);
-
-  // Test Suite buttons
-  document.getElementById("run-all-tests-btn")?.addEventListener("click", runAllTests);
-  document.getElementById("clear-terminal-btn")?.addEventListener("click", clearTerminal);
-
-  logToTerminal("System ready. Single source of truth activated.", "info");
 });
