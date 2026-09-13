@@ -108,8 +108,14 @@
         <button class="tab-btn" data-tab="register" data-role="student" id="tab-register" role="tab">
           <i class="fa-solid fa-user-plus"></i> Register
         </button>
+        <button class="tab-btn" data-tab="mytickets" data-role="student" id="tab-mytickets" role="tab">
+          <i class="fa-solid fa-ticket-simple"></i> My Tickets
+        </button>
         <button class="tab-btn" data-tab="admin" data-role="admin" id="tab-admin" role="tab">
           <i class="fa-solid fa-chart-pie"></i> Admin Dashboard
+        </button>
+        <button class="tab-btn" data-tab="audit" data-role="admin" id="tab-audit" role="tab">
+          <i class="fa-solid fa-microchip"></i> Audit Suite
         </button>
       </nav>
 
@@ -369,6 +375,187 @@
       </div>
     </section>
 
+    <!-- SECTION 4: AUTOMATED BUG AUDIT PANEL (FOR JUDGES) -->
+    <section id="section-audit" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2><i class="fa-solid fa-microchip"></i> System Integrity Audit Suite</h2>
+          <p class="text-muted">Automated 8-point verification test suite for evaluation judges.</p>
+        </div>
+        <div class="audit-quick-actions" style="display:flex; gap:0.5rem;">
+          <button id="run-all-tests-btn" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-play"></i> Run All 8 Tests
+          </button>
+          <button id="clear-terminal-btn" class="btn btn-outline-secondary btn-sm">
+            <i class="fa-solid fa-eraser"></i> Clear Console
+          </button>
+        </div>
+      </div>
+
+      <div class="test-suite-grid">
+        <!-- Test Card 1 -->
+        <div id="test-card-1" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 1</span>
+              <h4>Normal Registration</h4>
+            </div>
+            <p class="test-desc">Verifies successful seat deduction (30 &rarr; 29) on valid registration.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-1" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(1)">Run Test 1</button>
+          </div>
+        </div>
+
+        <!-- Test Card 2 -->
+        <div id="test-card-2" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 2</span>
+              <h4>Last Seat Booking</h4>
+            </div>
+            <p class="test-desc">Books final remaining seat and verifies state transitions to FULL (0 available).</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-2" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(2)">Run Test 2</button>
+          </div>
+        </div>
+
+        <!-- Test Card 3 -->
+        <div id="test-card-3" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 3</span>
+              <h4>Overbooking Protection</h4>
+            </div>
+            <p class="test-desc">Attempts to register for a FULL event and verifies rejection at core JS engine level.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-3" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(3)">Run Test 3</button>
+          </div>
+        </div>
+
+        <!-- Test Card 4 -->
+        <div id="test-card-4" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 4</span>
+              <h4>Empty Name Validation</h4>
+            </div>
+            <p class="test-desc">Submits form with empty name field and verifies rejection without state mutation.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-4" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(4)">Run Test 4</button>
+          </div>
+        </div>
+
+        <!-- Test Card 5 -->
+        <div id="test-card-5" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 5</span>
+              <h4>Empty Roll Validation</h4>
+            </div>
+            <p class="test-desc">Submits form with empty roll number and verifies rejection before state change.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-5" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(5)">Run Test 5</button>
+          </div>
+        </div>
+
+        <!-- Test Card 6 -->
+        <div id="test-card-6" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 6</span>
+              <h4>Double-Click Guard</h4>
+            </div>
+            <p class="test-desc">Fires rapid concurrent submissions and verifies execution lock (isSubmitting).</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-6" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(6)">Run Test 6</button>
+          </div>
+        </div>
+
+        <!-- Test Card 7 -->
+        <div id="test-card-7" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 7</span>
+              <h4>Multi-Event Isolation</h4>
+            </div>
+            <p class="test-desc">Registers for Event 1 &amp; Event 3, confirming independent state isolation.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-7" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(7)">Run Test 7</button>
+          </div>
+        </div>
+
+        <!-- Test Card 8 -->
+        <div id="test-card-8" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 8</span>
+              <h4>Input Sanitization</h4>
+            </div>
+            <p class="test-desc">Attempts name input with numbers/special chars ("John123") and verifies rejection.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-8" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(8)">Run Test 8</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Terminal Output Console -->
+      <div class="test-log-terminal">
+        <div class="terminal-header">
+          <span><i class="fa-solid fa-terminal"></i> Audit Diagnostics Engine &mdash; Live Terminal Stream</span>
+          <button class="btn-text-action" onclick="clearTerminal()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+        </div>
+        <div id="terminal-body" class="terminal-body">
+          <p class="terminal-line text-muted">&gt; Audit suite ready. Click "Run All 8 Tests" or launch individual tests above.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: STUDENT TICKET LOOKUP -->
+    <section id="section-mytickets" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2><i class="fa-solid fa-ticket-simple"></i> My Confirmed Tickets</h2>
+          <p class="text-muted">Retrieve and print your registered event receipts using your Roll Number.</p>
+        </div>
+      </div>
+
+      <div class="admin-card mb-4">
+        <div class="form-group" style="max-width: 500px; margin: 0 auto 1.5rem auto;">
+          <label for="lookup-roll-number"><i class="fa-solid fa-magnifying-glass"></i> Enter Roll Number to Search</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="text" id="lookup-roll-number" class="form-control" placeholder="e.g. 23IT001 or 23ROLL001" autocomplete="off">
+            <button id="lookup-ticket-btn" class="btn btn-primary">
+              <i class="fa-solid fa-magnifying-glass"></i> Search
+            </button>
+          </div>
+        </div>
+
+        <div id="lookup-results-container" class="events-grid">
+          <!-- Dynamically populated by app.js -->
+        </div>
+        <div id="lookup-empty-state" class="empty-state">
+          <i class="fa-solid fa-ticket empty-icon"></i>
+          <p>Enter your Roll Number above to view your confirmed tickets.</p>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- CONFIRMATION RECEIPT MODAL (PHASE 5) -->
@@ -387,7 +574,7 @@
       <div class="modal-body">
         <div class="receipt-box">
           <div class="receipt-header-row">
-            <span class="receipt-label"><i class="fa-solid fa-ticket"></i> Registration ID:</span>
+            <span class="receipt-label"><i class="fa-solid fa-ticket"></i> Registration Ticket</span>
             <span class="receipt-badge" id="receipt-id">REG-1001</span>
           </div>
 
@@ -411,11 +598,29 @@
           </div>
 
           <div class="receipt-row">
-            <span class="receipt-label"><i class="fa-solid fa-clock"></i> Date:</span>
+            <span class="receipt-label"><i class="fa-solid fa-clock"></i> Date &amp; Time:</span>
             <span class="receipt-value" id="receipt-date">10 Sept 2026</span>
           </div>
 
           <div class="divider"></div>
+
+          <div class="receipt-qr-wrapper" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); padding: 0.75rem; border-radius: var(--radius-md); margin-bottom: 0.85rem;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+              <i class="fa-solid fa-qrcode" style="font-size: 1.8rem; color: var(--accent-primary); margin-bottom: 0.2rem; display: block;"></i>
+              Scan for Entry Verification
+            </div>
+            <div class="barcode-graphic" style="display:flex; gap:2px; height: 32px; align-items: center;">
+              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:3px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:4px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:3px; height:100%; background:var(--text-secondary);"></span>
+              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
+            </div>
+          </div>
 
           <div class="receipt-status-banner">
             <span>Seat Status:</span>

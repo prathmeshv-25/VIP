@@ -1395,6 +1395,112 @@ function setupAddEventModal() {
   }
 }
 
+// Student Ticket Lookup Logic
+function setupTicketLookup() {
+  const searchBtn = document.getElementById("lookup-ticket-btn");
+  const inputEl = document.getElementById("lookup-roll-number");
+
+  if (searchBtn && inputEl) {
+    searchBtn.addEventListener("click", () => {
+      performTicketLookup(inputEl.value);
+    });
+
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        performTicketLookup(inputEl.value);
+      }
+    });
+  }
+}
+
+function performTicketLookup(rollQuery) {
+  const query = (rollQuery || "").trim().toLowerCase();
+  const container = document.getElementById("lookup-results-container");
+  const emptyState = document.getElementById("lookup-empty-state");
+
+  if (!container) return;
+
+  if (!query) {
+    showToast("Please enter a roll number to search", "warning");
+    return;
+  }
+
+  const matches = registrations.filter(r => r.rollNumber.toLowerCase() === query);
+
+  container.innerHTML = "";
+
+  if (matches.length === 0) {
+    if (emptyState) {
+      emptyState.classList.remove("hidden");
+      emptyState.querySelector("p").textContent = `No tickets found for Roll Number "${escapeHtml(query.toUpperCase())}".`;
+    }
+    return;
+  }
+
+  if (emptyState) emptyState.classList.add("hidden");
+
+  matches.forEach(reg => {
+    const card = document.createElement("div");
+    card.className = "event-card";
+    card.innerHTML = `
+      <div>
+        <div class="card-top">
+          <h3 class="event-name">${escapeHtml(reg.eventName)}</h3>
+          <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> CONFIRMED</span>
+        </div>
+        <div class="event-date">
+          <i class="fa-regular fa-calendar-check"></i> ${escapeHtml(reg.eventDate)}
+        </div>
+        <div class="receipt-box" style="margin-bottom: 1rem;">
+          <div class="receipt-row">
+            <span class="receipt-label">Ticket ID:</span>
+            <code style="color:var(--accent-primary); font-weight:700;">${escapeHtml(reg.id)}</code>
+          </div>
+          <div class="receipt-row">
+            <span class="receipt-label">Student:</span>
+            <strong>${escapeHtml(reg.studentName)}</strong>
+          </div>
+          <div class="receipt-row">
+            <span class="receipt-label">Roll No:</span>
+            <code>${escapeHtml(reg.rollNumber)}</code>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-primary btn-block" onclick="viewTicketReceipt('${reg.id}')">
+          <i class="fa-solid fa-ticket"></i> View Ticket Receipt
+        </button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function viewTicketReceipt(regId) {
+  const reg = registrations.find(r => r.id === regId);
+  if (reg) {
+    showConfirmationModal(reg);
+  }
+}
+
+// Audit Panel Controls
+function setupAuditPanel() {
+  const runAllBtn = document.getElementById("run-all-tests-btn");
+  const clearBtn = document.getElementById("clear-terminal-btn");
+
+  if (runAllBtn) {
+    runAllBtn.addEventListener("click", () => {
+      runAllTests();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      clearTerminal();
+    });
+  }
+}
+
 // App Initialization
 document.addEventListener("DOMContentLoaded", function () {
   loadState();
@@ -1407,6 +1513,8 @@ document.addEventListener("DOMContentLoaded", function () {
   setupTabNavigation();
   setupFormHandler();
   setupAddEventModal();
+  setupTicketLookup();
+  setupAuditPanel();
   setupThemeToggle();
 
   // Reset system button
