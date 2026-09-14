@@ -11,6 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <!-- Font Awesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Supabase JS Client SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body class="dark-theme">
@@ -120,6 +122,11 @@
       </nav>
 
       <div class="header-actions">
+        <button id="db-status-btn" class="db-status-badge" title="Database Connection & Supabase Settings">
+          <span id="db-pulse-dot" class="db-pulse-dot online"></span>
+          <i class="fa-solid fa-database"></i>
+          <span id="db-status-text">Live DB</span>
+        </button>
         <span id="role-badge" class="role-badge">
           <span id="role-badge-text">Student</span>
         </span>
@@ -380,11 +387,11 @@
       <div class="section-header">
         <div>
           <h2><i class="fa-solid fa-microchip"></i> System Integrity Audit Suite</h2>
-          <p class="text-muted">Automated 8-point verification test suite for evaluation judges.</p>
+          <p class="text-muted">Automated 9-point verification test suite for evaluation judges.</p>
         </div>
         <div class="audit-quick-actions" style="display:flex; gap:0.5rem;">
           <button id="run-all-tests-btn" class="btn btn-primary btn-sm">
-            <i class="fa-solid fa-play"></i> Run All 8 Tests
+            <i class="fa-solid fa-play"></i> Run All 9 Tests
           </button>
           <button id="clear-terminal-btn" class="btn btn-outline-secondary btn-sm">
             <i class="fa-solid fa-eraser"></i> Clear Console
@@ -512,16 +519,96 @@
             <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(8)">Run Test 8</button>
           </div>
         </div>
+
+        <!-- Test Card 9 -->
+        <div id="test-card-9" class="test-card">
+          <div>
+            <div class="test-header">
+              <span class="test-num">TEST 9</span>
+              <h4>Database &amp; API Sync</h4>
+            </div>
+            <p class="test-desc">Verifies async persistence and atomic seat calculation over REST API database layer.</p>
+          </div>
+          <div class="test-footer">
+            <span id="test-status-9" class="test-status badge badge-secondary">UNTESTED</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="runSingleTest(9)">Run Test 9</button>
+          </div>
+        </div>
       </div>
 
-      <!-- Live Terminal Output Console -->
-      <div class="test-log-terminal">
-        <div class="terminal-header">
-          <span><i class="fa-solid fa-terminal"></i> Audit Diagnostics Engine &mdash; Live Terminal Stream</span>
-          <button class="btn-text-action" onclick="clearTerminal()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+      <!-- VISUAL SYSTEM ARCHITECTURE FLOW DIAGRAM -->
+      <div class="architecture-diagram-card mb-4">
+        <div class="arch-header">
+          <h3><i class="fa-solid fa-network-wired"></i> Single Source of Truth System Architecture</h3>
+          <span class="badge badge-info"><i class="fa-solid fa-bolt"></i> Real-time DB Sync</span>
         </div>
-        <div id="terminal-body" class="terminal-body">
-          <p class="terminal-line text-muted">&gt; Audit suite ready. Click "Run All 8 Tests" or launch individual tests above.</p>
+        <p class="text-muted" style="margin-bottom: 1.25rem;">Multi-user seat booking and admin dashboard synchronization pipeline.</p>
+        
+        <div class="arch-flow-wrapper">
+          <div class="arch-node">
+            <div class="arch-node-icon student"><i class="fa-solid fa-user-graduate"></i></div>
+            <strong>Student Browser</strong>
+            <small>Registration &amp; My Tickets</small>
+          </div>
+          <div class="arch-arrow">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span class="arch-label">POST /api/register</span>
+          </div>
+          <div class="arch-node api">
+            <div class="arch-node-icon api-icon"><i class="fa-solid fa-gears"></i></div>
+            <strong>Registration API</strong>
+            <small>Validation &amp; Lock</small>
+          </div>
+          <div class="arch-arrow">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span class="arch-label">Mutate Transaction</span>
+          </div>
+          <div class="arch-node db">
+            <div class="arch-node-icon db-icon"><i class="fa-solid fa-database"></i></div>
+            <strong>Supabase / PostgREST</strong>
+            <small>PostgreSQL DB</small>
+          </div>
+          <div class="arch-arrow">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span class="arch-label">Derive Seats</span>
+          </div>
+          <div class="arch-node seats">
+            <div class="arch-node-icon seat-icon"><i class="fa-solid fa-chair"></i></div>
+            <strong>Seat Count</strong>
+            <small>total - registered</small>
+          </div>
+          <div class="arch-arrow">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span class="arch-label">Live Sync (3s)</span>
+          </div>
+          <div class="arch-node admin">
+            <div class="arch-node-icon admin-icon"><i class="fa-solid fa-chart-line"></i></div>
+            <strong>Admin Dashboard</strong>
+            <small>Analytics &amp; CSV Export</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Network REST API Console & Terminal Stream -->
+      <div class="dual-terminal-grid">
+        <div class="test-log-terminal">
+          <div class="terminal-header">
+            <span><i class="fa-solid fa-terminal"></i> Audit Diagnostics &mdash; Terminal Log</span>
+            <button class="btn-text-action" onclick="clearTerminal()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+          </div>
+          <div id="terminal-body" class="terminal-body">
+            <p class="terminal-line text-muted">&gt; Audit suite ready. Click "Run All 9 Tests" or launch individual tests above.</p>
+          </div>
+        </div>
+
+        <div class="test-log-terminal network-log-console">
+          <div class="terminal-header">
+            <span><i class="fa-solid fa-wifi"></i> Database REST API &mdash; Live Network Stream</span>
+            <button class="btn-text-action" onclick="clearNetworkConsole()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+          </div>
+          <div id="network-console-body" class="terminal-body">
+            <p class="terminal-line text-muted">&gt; Network console active. Supabase Realtime channel awaiting database changes.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -686,6 +773,213 @@
     </div>
   </div>
 
+  <!-- DATABASE & SUPABASE SETTINGS MODAL -->
+  <div id="db-config-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="db-config-title">
+    <div class="modal-card modal-lg">
+      <button class="modal-close-btn" id="db-config-close-btn" aria-label="Close modal">&times;</button>
+      
+      <div class="modal-header">
+        <h3 id="db-config-title" style="color: var(--text-primary); margin-bottom: 0.25rem;">
+          <i class="fa-solid fa-database" style="color: var(--accent-primary);"></i> Real Database &amp; Supabase Persistence Engine
+        </h3>
+        <p class="modal-subtitle">Configure real multi-user database connection or copy SQL schema scripts.</p>
+      </div>
+
+      <div class="modal-body">
+        <!-- DB Mode Selector Tabs -->
+        <div class="db-mode-tabs" style="display:flex; gap:0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+          <button id="db-tab-status" class="tab-btn active btn-sm" type="button"><i class="fa-solid fa-signal"></i> Connection Status</button>
+          <button id="db-tab-supabase" class="tab-btn btn-sm" type="button"><i class="fa-solid fa-plug"></i> Connect Supabase</button>
+          <button id="db-tab-sql" class="tab-btn btn-sm" type="button"><i class="fa-solid fa-code"></i> Copy PostgreSQL DDL</button>
+        </div>
+
+        <!-- Panel 1: Connection Status -->
+        <div id="db-panel-status" class="db-panel">
+          <div class="receipt-box" style="margin-bottom: 1rem;">
+            <div class="receipt-row">
+              <span class="receipt-label">Active Engine:</span>
+              <strong id="db-active-engine-text" style="color:var(--color-success);"><i class="fa-solid fa-circle-check"></i> REST Database &amp; Persistence Active</strong>
+            </div>
+            <div class="receipt-row">
+              <span class="receipt-label">Backend Provider:</span>
+              <span id="db-provider-name">Supabase Cloud / REST API Service</span>
+            </div>
+            <div class="receipt-row">
+              <span class="receipt-label">Live synchronization:</span>
+              <span>Active (3000ms cadence across tabs)</span>
+            </div>
+            <div class="receipt-row">
+              <span class="receipt-label">Single Source Rule:</span>
+              <code>availableSeats = totalSeats - registeredCount</code>
+            </div>
+          </div>
+          <div class="alert alert-info">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Changes made by student registrations or admin actions are stored in Supabase and synchronized through Realtime across connected users.</span>
+          </div>
+        </div>
+
+        <!-- Panel 2: Connect Supabase Credentials -->
+        <div id="db-panel-supabase" class="db-panel hidden">
+          <p class="text-muted mb-3" style="font-size: 0.85rem;">Enter your custom Supabase Project URL &amp; Anon Public Key below to connect to your remote PostgreSQL database.</p>
+
+          <form id="supabase-config-form">
+            <div class="form-group">
+              <label for="supabase-url-input"><i class="fa-solid fa-link"></i> Supabase Project URL</label>
+              <input type="url" id="supabase-url-input" class="form-control" placeholder="https://your-project.supabase.co" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label for="supabase-key-input"><i class="fa-solid fa-key"></i> Supabase Anon Key</label>
+              <input type="password" id="supabase-key-input" class="form-control" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." autocomplete="off">
+            </div>
+
+            <div style="display:flex; gap:0.5rem; margin-top: 1rem;">
+              <button type="button" id="save-supabase-btn" class="btn btn-primary btn-block">
+                <i class="fa-solid fa-floppy-disk"></i> Connect &amp; Save Credentials
+              </button>
+              <button type="button" id="disconnect-supabase-btn" class="btn btn-outline-danger">
+                <i class="fa-solid fa-power-off"></i> Reset to Default Engine
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Panel 3: SQL DDL Generator for Supabase -->
+        <div id="db-panel-sql" class="db-panel hidden">
+          <p class="text-muted mb-2" style="font-size: 0.85rem;">Copy and run this SQL script in your Supabase SQL Editor to initialize the database tables:</p>
+          <div style="position:relative;">
+            <pre class="sql-code-block" id="sql-code-content">
+-- EVENTHUB PS4 SINGLE SOURCE OF TRUTH DB SCHEMA
+
+CREATE TABLE IF NOT EXISTS public.events (
+  id INT PRIMARY KEY,
+  name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  raw_date DATE,
+  seats INT NOT NULL DEFAULT 30,
+  registered INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.registrations (
+  id TEXT PRIMARY KEY,
+  event_id INT NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  event_name TEXT NOT NULL,
+  event_date TEXT NOT NULL,
+  student_name TEXT NOT NULL,
+  roll_number TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  seats_left_after INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Explicit Data API access (required by projects with restricted default grants).
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.events TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.registrations TO anon, authenticated;
+
+-- Prevent duplicate roll numbers for the same event.
+CREATE UNIQUE INDEX IF NOT EXISTS registrations_event_roll_unique
+  ON public.registrations (event_id, lower(roll_number));
+
+-- Seed Initial Events
+INSERT INTO public.events (id, name, date, raw_date, seats, registered)
+VALUES 
+  (1, 'Code Clash', '10 Sept 2026', '2026-09-10', 30, 0),
+  (2, 'Web Warfare', '10 Sept 2026', '2026-09-10', 25, 0),
+  (3, 'Tech Quiz', '10 Sept 2026', '2026-09-10', 40, 0)
+ON CONFLICT (id) DO NOTHING;
+
+-- Enable Row Level Security
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
+
+-- Publish database changes to Supabase Realtime.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'events'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.events;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'registrations'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.registrations;
+  END IF;
+END $$;
+
+CREATE POLICY "Public Read Events" ON public.events FOR SELECT USING (true);
+CREATE POLICY "Public All Events" ON public.events FOR ALL USING (true);
+CREATE POLICY "Public Read Registrations" ON public.registrations FOR SELECT USING (true);
+CREATE POLICY "Public Insert Registrations" ON public.registrations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public Delete Registrations" ON public.registrations FOR DELETE USING (true);
+
+-- Atomic seat booking: the conditional UPDATE locks the event row and prevents overbooking.
+CREATE OR REPLACE FUNCTION public.register_for_event(
+  p_registration_id TEXT,
+  p_event_id INT,
+  p_student_name TEXT,
+  p_roll_number TEXT,
+  p_timestamp TEXT
+)
+RETURNS TABLE (
+  id TEXT,
+  event_id INT,
+  event_name TEXT,
+  event_date TEXT,
+  student_name TEXT,
+  roll_number TEXT,
+  "timestamp" TEXT,
+  seats_left_after INT,
+  registered INT
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE v_event public.events%ROWTYPE;
+BEGIN
+  UPDATE public.events AS e
+  SET registered = e.registered + 1
+  WHERE e.id = p_event_id AND e.registered < e.seats
+  RETURNING e.* INTO v_event;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'EVENT_FULL';
+  END IF;
+
+  RETURN QUERY
+  INSERT INTO public.registrations
+    (id, event_id, event_name, event_date, student_name, roll_number, "timestamp", seats_left_after)
+  VALUES
+    (p_registration_id, v_event.id, v_event.name, v_event.date, p_student_name, p_roll_number,
+     p_timestamp, v_event.seats - v_event.registered)
+  RETURNING registrations.id, registrations.event_id, registrations.event_name, registrations.event_date,
+    registrations.student_name, registrations.roll_number, registrations."timestamp",
+    registrations.seats_left_after, v_event.registered;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.register_for_event(TEXT, INT, TEXT, TEXT, TEXT) TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';
+            </pre>
+            <button id="copy-sql-btn" class="btn btn-sm btn-primary" style="position:absolute; top: 8px; right: 8px;" type="button">
+              <i class="fa-solid fa-copy"></i> Copy SQL
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="db-config-done-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="footer-container">
       <p>PS4 Event Registration System &copy; 2026 | Developed by <strong>Team VIP</strong></p>
@@ -700,4 +994,3 @@
   <script src="app.js"></script>
 </body>
 </html>
-

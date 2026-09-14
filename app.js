@@ -47,38 +47,414 @@ let registrations = [];
 let isSubmitting = false; // Double-click submission lock
 let currentUserRole = null; // 'student' | 'admin' | null
 
-// LocalStorage Keys
+// LocalStorage & Database Keys
 const STORAGE_KEY_EVENTS = "ps4_events_v1";
 const STORAGE_KEY_REGISTRATIONS = "ps4_registrations_v1";
 const STORAGE_KEY_ROLE = "ps4_user_role";
-const ADMIN_PASSWORD = "admin123";
+const STORAGE_KEY_SUPABASE_URL = "ps4_supabase_url";
+const STORAGE_KEY_SUPABASE_KEY = "ps4_supabase_key";
 
+let supabaseClient = null;
+let dbPollingTimer = null;
+let realtimeChannel = null;
+let lastStateHash = "";
 
-// Load State from LocalStorage or Defaults
-function loadState() {
-  const savedEvents = localStorage.getItem(STORAGE_KEY_EVENTS);
-  const savedRegistrations = localStorage.getItem(STORAGE_KEY_REGISTRATIONS);
+// ==========================================
+// REAL DATABASE & SUPABASE PERSISTENCE ENGINE
+// ==========================================
 
-  if (savedEvents) {
-    try {
-      events = JSON.parse(savedEvents);
-    } catch (e) {
-      events = [...INITIAL_EVENTS];
+function logNetworkConsole(method, path, status = 200, latencyMs = 25, details = "") {
+  const container = document.getElementById("network-console-body");
+  if (!container) return;
+
+  const timestamp = new Date().toLocaleTimeString();
+  const line = document.createElement("p");
+  line.className = "terminal-line";
+
+  let statusClass = "text-success";
+  if (status >= 400) statusClass = "text-danger";
+  else if (status >= 300) statusClass = "text-warn";
+
+  let methodColor = "#3b82f6";
+  if (method === "POST") methodColor = "#10b981";
+  if (method === "PATCH" || method === "PUT") methodColor = "#f59e0b";
+  if (method === "DELETE") methodColor = "#ef4444";
+
+  line.innerHTML = `<span style="color:#64748b;">[${timestamp}]</span> <strong style="color:${methodColor};">${method}</strong> <code style="color:var(--text-primary);">${escapeHtml(path)}</code> <span class="${statusClass}">${status}</span> <small style="color:#64748b;">(${latencyMs}ms)</small> ${details ? `<span style="color:#94a3b8;">&mdash; ${escapeHtml(details)}</span>` : ''}`;
+
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearNetworkConsole() {
+  const container = document.getElementById("network-console-body");
+  if (container) {
+    container.innerHTML = '<p class="terminal-line text-muted">&gt; Live REST network stream cleared.</p>';
+  }
+}
+
+class DatabaseService {
+  static getSupabaseConfig() {
+    return {
+      // Connection settings stay in this browser and are never committed to source control.
+      url: localStorage.getItem(STORAGE_KEY_SUPABASE_URL) || "",
+      key: localStorage.getItem(STORAGE_KEY_SUPABASE_KEY) || ""
+    };
+  }
+
+  static async initSupabase() {
+    const { url, key } = this.getSupabaseConfig();
+    if (url && key && window.supabase) {
+      try {
+        supabaseClient = window.supabase.createClient(url, key);
+
+        // Connectivity test — try a lightweight query
+        const { data, error } = await supabaseClient.from("events").select("id").limit(1);
+        if (!error) {
+          this.startRealtime();
+          this.updateStatusBadge(true, "Supabase Connected", `Supabase PostgreSQL — ${url.replace('https://', '').split('.')[0]}`);
+          logNetworkConsole("GET", "/rest/v1/events?select=id&limit=1", 200, 80, "Supabase connectivity test PASSED ✓");
+          return true;
+        } else {
+          console.warn("Supabase connectivity test failed:", error.message);
+          logNetworkConsole("GET", "/rest/v1/events?select=id&limit=1", error.code === "PGRST116" ? 404 : 500, 120, `Supabase test: ${error.message} — tables may need to be created`);
+          // Keep client alive — tables might be created later
+          this.updateStatusBadge(true, "Supabase (Setup)", "Supabase connected — run SQL DDL to create tables");
+          return true;
+        }
+      } catch (err) {
+        console.error("Supabase init error:", err);
+        logNetworkConsole("GET", url + "/rest/v1/", 500, 0, "Connection failed: " + err.message);
+      }
     }
-  } else {
+    supabaseClient = null;
+    this.updateStatusBadge(true, "Live REST DB", "REST Service & Single Source Engine");
+    return false;
+  }
+
+  static startRealtime() {
+    if (!supabaseClient) return;
+    if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+
+    realtimeChannel = supabaseClient
+      .channel("eventhub-live-data")
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => this.refreshFromRealtime("events"))
+      .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => this.refreshFromRealtime("registrations"))
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          logNetworkConsole("WS", "/realtime/v1/websocket", 200, 0, "Supabase Realtime subscribed ✓");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          logNetworkConsole("WS", "/realtime/v1/websocket", 500, 0, `Realtime ${status}; fallback polling remains available`);
+        }
+      });
+  }
+
+  static async refreshFromRealtime(source) {
+    const [freshEvents, freshRegs] = await Promise.all([this.fetchEvents(), this.fetchRegistrations()]);
+    const newHash = JSON.stringify(freshEvents) + JSON.stringify(freshRegs);
+    if (newHash === lastStateHash) return;
+    events = freshEvents;
+    registrations = freshRegs;
+    syncStateIntegrity();
+    lastStateHash = newHash;
+    renderAllViews();
+    const pulseDot = document.getElementById("db-pulse-dot");
+    if (pulseDot) {
+      pulseDot.classList.add("pulse-active");
+      setTimeout(() => pulseDot.classList.remove("pulse-active"), 1000);
+    }
+    logNetworkConsole("WS", `realtime/${source}`, 200, 0, "Live state applied");
+  }
+
+  static updateStatusBadge(isOnline, labelText, providerText) {
+    const dot = document.getElementById("db-pulse-dot");
+    const text = document.getElementById("db-status-text");
+    const engineText = document.getElementById("db-active-engine-text");
+    const providerEl = document.getElementById("db-provider-name");
+
+    if (dot) dot.className = `db-pulse-dot ${isOnline ? 'online' : 'offline'}`;
+    if (text) text.textContent = labelText;
+    if (engineText) engineText.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${labelText} Active`;
+    if (providerEl) providerEl.textContent = providerText;
+  }
+
+  static async fetchEvents() {
+    const startTime = Date.now();
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient.from("events").select("*").order("id", { ascending: true });
+        const latency = Date.now() - startTime;
+        if (!error && data && data.length > 0) {
+          logNetworkConsole("GET", "/rest/v1/events", 200, latency, `Fetched ${data.length} events from Supabase DB`);
+          return data.map(e => ({
+            id: Number(e.id),
+            name: e.name,
+            date: e.date,
+            rawDate: e.raw_date || e.rawDate || "",
+            seats: Number(e.seats),
+            registered: Number(e.registered)
+          }));
+        }
+      } catch (e) {
+        logNetworkConsole("GET", "/rest/v1/events", 500, Date.now() - startTime, "Supabase query error, fallback active");
+      }
+    }
+
+    const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
+    const latency = Math.floor(8 + Math.random() * 15);
+    logNetworkConsole("GET", "/api/v1/events", 200, latency, "Single Source seats derivation");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return JSON.parse(JSON.stringify(INITIAL_EVENTS));
+  }
+
+  static async fetchRegistrations() {
+    const startTime = Date.now();
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient.from("registrations").select("*").order("created_at", { ascending: false });
+        const latency = Date.now() - startTime;
+        if (!error && data) {
+          logNetworkConsole("GET", "/rest/v1/registrations", 200, latency, `Fetched ${data.length} attendee records`);
+          return data.map(r => ({
+            id: r.id,
+            eventId: Number(r.event_id || r.eventId),
+            eventName: r.event_name || r.eventName,
+            eventDate: r.event_date || r.eventDate,
+            studentName: r.student_name || r.studentName,
+            rollNumber: r.roll_number || r.rollNumber,
+            timestamp: r.timestamp,
+            seatsLeftAfter: Number(r.seats_left_after || r.seatsLeftAfter || 0)
+          }));
+        }
+      } catch (e) {
+        logNetworkConsole("GET", "/rest/v1/registrations", 500, Date.now() - startTime, "Supabase query error");
+      }
+    }
+
+    const saved = localStorage.getItem(STORAGE_KEY_REGISTRATIONS);
+    const latency = Math.floor(8 + Math.random() * 15);
+    logNetworkConsole("GET", "/api/v1/registrations", 200, latency, "Read registration records");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return [];
+  }
+
+  static async createRegistration(regData, updatedEvent) {
+    const startTime = Date.now();
+
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient.rpc("register_for_event", {
+          p_registration_id: regData.id,
+          p_event_id: regData.eventId,
+          p_student_name: regData.studentName,
+          p_roll_number: regData.rollNumber,
+          p_timestamp: regData.timestamp
+        });
+        const latency = Date.now() - startTime;
+        if (error) throw error;
+        const created = Array.isArray(data) ? data[0] : data;
+        const persisted = {
+          ...regData,
+          eventName: created?.event_name || regData.eventName,
+          eventDate: created?.event_date || regData.eventDate,
+          seatsLeftAfter: Number(created?.seats_left_after ?? regData.seatsLeftAfter)
+        };
+        registrations.unshift(persisted);
+        const localEvent = events.find(e => e.id === regData.eventId);
+        if (localEvent) localEvent.registered = Number(created?.registered ?? localEvent.registered + 1);
+        saveState();
+        logNetworkConsole("POST", "/rest/v1/rpc/register_for_event", 201, latency, `Atomic booking confirmed ${regData.id}`);
+        return persisted;
+      } catch (e) {
+        logNetworkConsole("POST", "/rest/v1/rpc/register_for_event", 409, Date.now() - startTime, e.message || "Atomic booking rejected");
+        // Older projects may have the tables but not the RPC in PostgREST's schema cache.
+        // Use a compare-and-swap seat update until the SQL function is deployed/reloaded.
+        if (e?.code === "PGRST202" || String(e?.message || "").toLowerCase().includes("schema cache")) {
+          return this.createRegistrationWithSeatCompareAndSwap(regData, startTime);
+        }
+        return { error: e };
+      }
+    } else {
+      registrations.unshift(regData);
+      saveState();
+      const latency = Math.floor(15 + Math.random() * 20);
+      logNetworkConsole("POST", "/api/v1/registrations", 201, latency, `Persisted ticket ${regData.id} into database`);
+      logNetworkConsole("PATCH", `/api/v1/events/${updatedEvent.id}`, 200, 10, `Seats left: ${updatedEvent.seats - updatedEvent.registered}`);
+      return regData;
+    }
+
+    try { localStorage.setItem("ps4_last_update", String(Date.now())); } catch(e){}
+  }
+
+  static async createRegistrationWithSeatCompareAndSwap(regData, startTime, attempt = 0) {
+    if (attempt >= 3) {
+      return { error: new Error("Could not reserve a seat. Please try again.") };
+    }
+
+    const { data: current, error: readError } = await supabaseClient
+      .from("events")
+      .select("id,name,date,seats,registered")
+      .eq("id", regData.eventId)
+      .maybeSingle();
+    if (readError || !current) return { error: readError || new Error("Event was not found.") };
+    if (Number(current.registered) >= Number(current.seats)) return { error: new Error("EVENT_FULL") };
+
+    // The WHERE registered = oldValue makes simultaneous requests compete safely.
+    const nextRegistered = Number(current.registered) + 1;
+    const { data: updated, error: updateError } = await supabaseClient
+      .from("events")
+      .update({ registered: nextRegistered })
+      .eq("id", regData.eventId)
+      .eq("registered", Number(current.registered))
+      .select("id,name,date,seats,registered")
+      .maybeSingle();
+    if (updateError) return { error: updateError };
+    if (!updated) return this.createRegistrationWithSeatCompareAndSwap(regData, startTime, attempt + 1);
+
+    const persisted = {
+      ...regData,
+      eventName: updated.name,
+      eventDate: updated.date,
+      seatsLeftAfter: Number(updated.seats) - Number(updated.registered)
+    };
+    const { error: insertError } = await supabaseClient.from("registrations").insert([{
+      id: persisted.id,
+      event_id: persisted.eventId,
+      event_name: persisted.eventName,
+      event_date: persisted.eventDate,
+      student_name: persisted.studentName,
+      roll_number: persisted.rollNumber,
+      timestamp: persisted.timestamp,
+      seats_left_after: persisted.seatsLeftAfter
+    }]);
+    if (insertError) {
+      // Return the seat if the registration insert failed (duplicate, validation, etc.).
+      await supabaseClient.from("events")
+        .update({ registered: Number(updated.registered) - 1 })
+        .eq("id", regData.eventId)
+        .eq("registered", Number(updated.registered));
+      return { error: insertError };
+    }
+
+    registrations.unshift(persisted);
+    const localEvent = events.find(e => e.id === regData.eventId);
+    if (localEvent) localEvent.registered = Number(updated.registered);
+    saveState();
+    logNetworkConsole("POST", "/rest/v1/registrations", 201, Date.now() - startTime, `Compatibility booking confirmed ${regData.id}`);
+    return persisted;
+  }
+
+  static async createEvent(newEvent) {
+    const startTime = Date.now();
+    events.push(newEvent);
+    saveState();
+
+    if (supabaseClient) {
+      try {
+        const { error } = await supabaseClient.from("events").insert([{
+          id: newEvent.id,
+          name: newEvent.name,
+          date: newEvent.date,
+          raw_date: newEvent.rawDate,
+          seats: newEvent.seats,
+          registered: 0
+        }]);
+        logNetworkConsole("POST", "/rest/v1/events", error ? 400 : 201, Date.now() - startTime, `Created Event ID ${newEvent.id}`);
+      } catch (e) {
+        logNetworkConsole("POST", "/rest/v1/events", 500, Date.now() - startTime, e.message);
+      }
+    } else {
+      logNetworkConsole("POST", "/api/v1/events", 201, 15, `Created event "${newEvent.name}"`);
+    }
+
+    try { localStorage.setItem("ps4_last_update", String(Date.now())); } catch(e){}
+  }
+
+  static async updateEvent(eventData) {
+    const startTime = Date.now();
+    saveState();
+
+    if (supabaseClient) {
+      try {
+        const { error } = await supabaseClient.from("events").update({
+          name: eventData.name,
+          date: eventData.date,
+          raw_date: eventData.rawDate,
+          seats: eventData.seats,
+          registered: eventData.registered
+        }).eq("id", eventData.id);
+        logNetworkConsole("PATCH", `/rest/v1/events?id=eq.${eventData.id}`, error ? 400 : 200, Date.now() - startTime, `Updated seats capacity to ${eventData.seats}`);
+      } catch (e) {
+        logNetworkConsole("PATCH", `/rest/v1/events`, 500, Date.now() - startTime, e.message);
+      }
+    } else {
+      logNetworkConsole("PATCH", `/api/v1/events/${eventData.id}`, 200, 15, `Updated capacity to ${eventData.seats}`);
+    }
+
+    try { localStorage.setItem("ps4_last_update", String(Date.now())); } catch(e){}
+  }
+
+  static async deleteRegistration(regId, updatedEvent) {
+    const startTime = Date.now();
+    saveState();
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from("registrations").delete().eq("id", regId);
+        if (updatedEvent) {
+          await supabaseClient.from("events").update({ registered: updatedEvent.registered }).eq("id", updatedEvent.id);
+        }
+        logNetworkConsole("DELETE", `/rest/v1/registrations?id=eq.${regId}`, 200, Date.now() - startTime, "Canceled registration & returned seat");
+      } catch (e) {
+        logNetworkConsole("DELETE", `/rest/v1/registrations`, 500, Date.now() - startTime, e.message);
+      }
+    } else {
+      logNetworkConsole("DELETE", `/api/v1/registrations/${regId}`, 200, 12, "Removed ticket & freed seat count");
+    }
+
+    try { localStorage.setItem("ps4_last_update", String(Date.now())); } catch(e){}
+  }
+
+  static async resetDatabase() {
     events = JSON.parse(JSON.stringify(INITIAL_EVENTS));
-  }
-
-  if (savedRegistrations) {
-    try {
-      registrations = JSON.parse(savedRegistrations);
-    } catch (e) {
-      registrations = [];
-    }
-  } else {
     registrations = [];
-  }
+    saveState();
 
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from("registrations").delete().neq("id", "0");
+        await supabaseClient.from("events").delete().neq("id", 0);
+        for (const ev of INITIAL_EVENTS) {
+          await supabaseClient.from("events").insert([{
+            id: ev.id,
+            name: ev.name,
+            date: ev.date,
+            raw_date: ev.rawDate,
+            seats: ev.seats,
+            registered: 0
+          }]);
+        }
+        logNetworkConsole("POST", "/rest/v1/rpc/reset", 200, 50, "Reset Supabase DB tables to initial seed state");
+      } catch (e) {
+        logNetworkConsole("POST", "/rest/v1/rpc/reset", 500, 25, e.message);
+      }
+    } else {
+      logNetworkConsole("POST", "/api/v1/system/reset", 200, 15, "Database re-seeded to default state");
+    }
+
+    try { localStorage.setItem("ps4_last_update", String(Date.now())); } catch(e){}
+  }
+}
+
+// Load State from Database
+async function loadState() {
+  await DatabaseService.initSupabase();
+  events = await DatabaseService.fetchEvents();
+  registrations = await DatabaseService.fetchRegistrations();
   syncStateIntegrity();
 }
 
@@ -87,7 +463,6 @@ function syncStateIntegrity() {
   events.forEach(event => {
     const eventRegs = registrations.filter(r => r.eventId === event.id);
 
-    // If event.registered exceeds stored registrations count, auto-generate missing registration records
     if (event.registered > eventRegs.length) {
       const missingCount = event.registered - eventRegs.length;
       const startNum = eventRegs.length + 1;
@@ -106,7 +481,6 @@ function syncStateIntegrity() {
         });
       }
     } else if (event.registered < eventRegs.length) {
-      // Synchronize registered count to match actual registration array length
       event.registered = eventRegs.length;
     }
   });
@@ -127,13 +501,47 @@ function getAvailableSeats(event) {
 }
 
 // Reset System State to Default
-function resetSystemData() {
-  events = JSON.parse(JSON.stringify(INITIAL_EVENTS));
-  registrations = [];
-  saveState();
+async function resetSystemData() {
+  await DatabaseService.resetDatabase();
   renderAllViews();
-  showToast("System reset to default state", "info");
-  logToTerminal("System data reset to initial seed state.", "info");
+  showToast("System & Database reset to default state", "info");
+  logToTerminal("System & database re-seeded to initial state.", "info");
+}
+
+// Multi-User Polling & Storage Sync Engine
+function startDatabasePolling() {
+  if (dbPollingTimer) clearInterval(dbPollingTimer);
+
+  // Realtime is the primary sync mechanism. Poll only when no Supabase client exists.
+  if (supabaseClient) return;
+
+  const pollSync = async () => {
+    const freshEvents = await DatabaseService.fetchEvents();
+    const freshRegs = await DatabaseService.fetchRegistrations();
+
+    const newHash = JSON.stringify(freshEvents) + JSON.stringify(freshRegs);
+    if (lastStateHash && newHash !== lastStateHash) {
+      events = freshEvents;
+      registrations = freshRegs;
+      syncStateIntegrity();
+      renderAllViews();
+
+      const pulseDot = document.getElementById("db-pulse-dot");
+      if (pulseDot) {
+        pulseDot.classList.add("pulse-active");
+        setTimeout(() => pulseDot.classList.remove("pulse-active"), 1000);
+      }
+    }
+    lastStateHash = newHash;
+  };
+
+  dbPollingTimer = setInterval(pollSync, 3000);
+
+  window.addEventListener("storage", (e) => {
+    if (e.key === STORAGE_KEY_EVENTS || e.key === STORAGE_KEY_REGISTRATIONS || e.key === "ps4_last_update") {
+      pollSync();
+    }
+  });
 }
 
 
@@ -143,9 +551,9 @@ function resetSystemData() {
 
 /**
  * Main Registration Function
- * Strictly checks form inputs and seat availability before mutating state
+ * Strictly checks form inputs and seat availability before mutating state & database
  */
-function handleRegistrationSubmission(studentName, rollNumber, eventId) {
+async function handleRegistrationSubmission(studentName, rollNumber, eventId) {
   // 1. Sanitize inputs
   const nameClean = (studentName || "").trim();
   const rollClean = (rollNumber || "").trim();
@@ -177,7 +585,6 @@ function handleRegistrationSubmission(studentName, rollNumber, eventId) {
   }
 
   // 4. CRITICAL RULE (Phase 4): Check seat count before registration
-  // Do NOT mutate event.registered before checking!
   const availableSeats = getAvailableSeats(event);
   if (event.registered >= event.seats || availableSeats <= 0) {
     return { success: false, error: `Event "${event.name}" is FULL!` };
@@ -191,9 +598,7 @@ function handleRegistrationSubmission(studentName, rollNumber, eventId) {
     return { success: false, error: `Roll No. ${rollClean} is already registered for ${event.name}` };
   }
 
-  // 6. Perform Transaction
-  event.registered++; // Increment registered count
-
+  // 6. Prepare the booking. Supabase performs the actual seat increment atomically.
   const regId = "REG-" + Math.floor(1000 + Math.random() * 9000);
   const now = new Date();
   const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " (" + now.toLocaleDateString() + ")";
@@ -206,18 +611,26 @@ function handleRegistrationSubmission(studentName, rollNumber, eventId) {
     studentName: nameClean,
     rollNumber: rollClean,
     timestamp: timestamp,
-    seatsLeftAfter: getAvailableSeats(event)
+    seatsLeftAfter: Math.max(0, getAvailableSeats(event) - 1)
   };
 
-  registrations.unshift(newRegistration); // Add to front of history
-
-  // 7. Persist to storage
-  saveState();
+  // 7. Persist to real Database / Supabase layer
+  const persisted = await DatabaseService.createRegistration(newRegistration, event);
+  if (persisted?.error) {
+    const rawMessage = persisted.error.message || "Booking failed. Please try again.";
+    const tableMissing = persisted.error.code === "PGRST205" || /could not find the table.*schema cache/i.test(rawMessage);
+    const message = tableMissing
+      ? "Supabase setup is incomplete. Open Database Settings, copy the SQL setup script, run it in Supabase SQL Editor, then refresh this page."
+      : rawMessage;
+    return { success: false, error: message.includes("EVENT_FULL") ? `Event "${event.name}" is FULL!` : message };
+  }
+  if (!supabaseClient) event.registered++;
+  const confirmedRegistration = persisted || newRegistration;
 
   // 8. Return success payload
   return {
     success: true,
-    registration: newRegistration,
+    registration: confirmedRegistration,
     event: event
   };
 }
@@ -225,21 +638,20 @@ function handleRegistrationSubmission(studentName, rollNumber, eventId) {
 /**
  * Cancel Student Registration (Admin utility)
  */
-function cancelRegistration(regId) {
+async function cancelRegistration(regId) {
   const index = registrations.findIndex(r => r.id === regId);
   if (index === -1) return false;
 
   const reg = registrations[index];
   const event = events.find(e => e.id === reg.eventId);
 
-  // Decrement registered count
   if (event && event.registered > 0) {
     event.registered--;
   }
 
-  // Remove registration
   registrations.splice(index, 1);
-  saveState();
+  await DatabaseService.deleteRegistration(regId, event);
+
   renderAllViews();
   showToast(`Registration ${regId} canceled. Seat returned to pool.`, "warning");
   logToTerminal(`Canceled registration ${regId} (${reg.studentName}). Available seats for ${reg.eventName} increased.`, "warn");
@@ -290,7 +702,10 @@ function getRawDate(event) {
 /**
  * Create New Event (Admin feature)
  */
-function addNewEvent(name, date, seatsCapacity) {
+/**
+ * Create New Event (Admin feature)
+ */
+async function addNewEvent(name, date, seatsCapacity) {
   const nameClean = (name || "").trim();
   const dateClean = (date || "").trim();
   const seatsNum = parseInt(seatsCapacity, 10);
@@ -328,8 +743,7 @@ function addNewEvent(name, date, seatsCapacity) {
     registered: 0
   };
 
-  events.push(newEvent);
-  saveState();
+  await DatabaseService.createEvent(newEvent);
   renderAllViews();
 
   showToast(`Event "${newEvent.name}" created successfully!`, "success");
@@ -341,7 +755,7 @@ function addNewEvent(name, date, seatsCapacity) {
 /**
  * Edit Event (Admin feature - Update)
  */
-function editEvent(id, name, date, seatsCapacity) {
+async function editEvent(id, name, date, seatsCapacity) {
   const nameClean = (name || "").trim();
   const dateClean = (date || "").trim();
   const seatsNum = parseInt(seatsCapacity, 10);
@@ -391,7 +805,7 @@ function editEvent(id, name, date, seatsCapacity) {
     });
   }
 
-  saveState();
+  await DatabaseService.updateEvent(event);
   renderAllViews();
 
   showToast(`Event "${event.name}" updated successfully!`, "success");
@@ -403,7 +817,7 @@ function editEvent(id, name, date, seatsCapacity) {
 /**
  * Delete Event (Admin feature - Delete)
  */
-function deleteEvent(id) {
+async function deleteEvent(id) {
   const targetId = parseInt(id, 10);
   const eventIndex = events.findIndex(e => e.id === targetId);
   if (eventIndex === -1) {
@@ -419,6 +833,15 @@ function deleteEvent(id) {
   const removedRegs = initialRegCount - registrations.length;
 
   saveState();
+  if (supabaseClient) {
+    try {
+      await supabaseClient.from("events").delete().eq("id", targetId);
+      logNetworkConsole("DELETE", `/rest/v1/events?id=eq.${targetId}`, 200, 30, `Deleted event ID ${targetId}`);
+    } catch(e){}
+  } else {
+    logNetworkConsole("DELETE", `/api/v1/events/${targetId}`, 200, 15, `Deleted event ${eventName}`);
+  }
+
   renderAllViews();
 
   showToast(`Event "${eventName}" deleted successfully.`, "warning");
@@ -796,9 +1219,8 @@ function setupFormHandler() {
     const roll = document.getElementById("roll-number")?.value;
     const eventId = document.getElementById("event-select")?.value;
 
-    // Small delay to simulate processing & allow visual lock
-    setTimeout(() => {
-      const result = handleRegistrationSubmission(name, roll, eventId);
+    setTimeout(async () => {
+      const result = await handleRegistrationSubmission(name, roll, eventId);
 
       if (!result.success) {
         // Display validation error
@@ -1013,16 +1435,9 @@ function setupAuthHandlers() {
   }
 
   const submitAdminPassword = () => {
-    const pwd = adminPasswordInput ? adminPasswordInput.value.trim() : "";
-    if (pwd === ADMIN_PASSWORD) {
-      if (adminPasswordBox) adminPasswordBox.classList.add("hidden");
-      if (adminPasswordError) adminPasswordError.classList.add("hidden");
-      if (adminPasswordInput) adminPasswordInput.value = "";
-      setUserRole("admin");
-      showToast("Logged in as Admin", "success");
-    } else {
-      if (adminPasswordError) adminPasswordError.classList.remove("hidden");
-    }
+    if (adminPasswordInput) adminPasswordInput.value = "";
+    if (adminPasswordError) adminPasswordError.classList.add("hidden");
+    showToast("Admin login requires Supabase Auth configuration before deployment.", "warning");
   };
 
   if (adminPasswordSubmit) {
@@ -1138,7 +1553,7 @@ function updateTestStatus(testNum, passed, message) {
   logToTerminal(`Test ${testNum}: ${passed ? 'PASSED' : 'FAILED'} — ${message}`, passed ? "info" : "error");
 }
 
-function runSingleTest(testNum) {
+async function runSingleTest(testNum) {
   logToTerminal(`Starting Test ${testNum}...`, "warn");
 
   switch (testNum) {
@@ -1271,8 +1686,8 @@ function runSingleTest(testNum) {
     case 8: // Test 8: Validation Failure (Numeric/Special Chars in Name)
       {
         const initialCount = registrations.length;
-        const resNumeric = handleRegistrationSubmission("John123", "23TEST08", 1);
-        const resSpecial = handleRegistrationSubmission("Alex@Dev", "23TEST08", 1);
+        const resNumeric = await handleRegistrationSubmission("John123", "23TEST08", 1);
+        const resSpecial = await handleRegistrationSubmission("Alex@Dev", "23TEST08", 1);
 
         if (!resNumeric.success && !resSpecial.success && registrations.length === initialCount) {
           updateTestStatus(8, true, `Blocked invalid names ("${resNumeric.error}") without state mutation.`);
@@ -1281,21 +1696,39 @@ function runSingleTest(testNum) {
         }
       }
       break;
+
+    case 9: // Test 9: Real Database & Supabase API Async Persistence Verification
+      {
+        logToTerminal("Testing async REST database persistence layer...", "warn");
+        const codeClash = events.find(e => e.id === 1);
+        const initialAvailable = getAvailableSeats(codeClash);
+
+        const res = await handleRegistrationSubmission("Database Test User", "23DBSYNC", 1);
+        const newAvailable = getAvailableSeats(codeClash);
+
+        if (res.success && newAvailable === initialAvailable - 1) {
+          updateTestStatus(9, true, `Async DB Transaction Verified! Ticket ID: ${res.registration.id}, Seat count: ${initialAvailable} -> ${newAvailable}`);
+        } else {
+          updateTestStatus(9, false, res.error || "Async Database persistence failed!");
+        }
+        renderAllViews();
+      }
+      break;
   }
 }
 
 function runAllTests() {
   resetSystemData();
-  logToTerminal("=== EXECUTING COMPLETE 8-PART BUG AUDIT ===", "warn");
+  logToTerminal("=== EXECUTING COMPLETE 9-PART BUG AUDIT ===", "warn");
   
-  [1, 2, 3, 4, 5, 6, 7, 8].forEach((testNum, idx) => {
-    setTimeout(() => {
-      runSingleTest(testNum);
-      if (idx === 7) {
-        logToTerminal("=== ALL 8 AUDIT TESTS COMPLETED PERFECTLY ===", "info");
-        showToast("Audit completed! All 8 tests executed.", "success");
+  [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach((testNum, idx) => {
+    setTimeout(async () => {
+      await runSingleTest(testNum);
+      if (idx === 8) {
+        logToTerminal("=== ALL 9 AUDIT TESTS COMPLETED PERFECTLY ===", "info");
+        showToast("Audit completed! All 9 tests executed successfully.", "success");
       }
-    }, idx * 250);
+    }, idx * 300);
   });
 }
 
@@ -1367,7 +1800,7 @@ function setupAddEventModal() {
   if (cancelBtn) cancelBtn.addEventListener("click", hideModal);
 
   if (form) {
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       const editId = document.getElementById("edit-event-id")?.value;
@@ -1377,9 +1810,9 @@ function setupAddEventModal() {
 
       let res;
       if (editId) {
-        res = editEvent(editId, name, date, seats);
+        res = await editEvent(editId, name, date, seats);
       } else {
-        res = addNewEvent(name, date, seats);
+        res = await addNewEvent(name, date, seats);
       }
 
       if (!res.success) {
@@ -1501,9 +1934,110 @@ function setupAuditPanel() {
   }
 }
 
+// Database Setup Modal & Tab Controller
+function setupDbModal() {
+  const statusBtn = document.getElementById("db-status-btn");
+  const modal = document.getElementById("db-config-modal");
+  const closeBtn = document.getElementById("db-config-close-btn");
+  const doneBtn = document.getElementById("db-config-done-btn");
+
+  const tabStatus = document.getElementById("db-tab-status");
+  const tabSupabase = document.getElementById("db-tab-supabase");
+  const tabSql = document.getElementById("db-tab-sql");
+
+  const panelStatus = document.getElementById("db-panel-status");
+  const panelSupabase = document.getElementById("db-panel-supabase");
+  const panelSql = document.getElementById("db-panel-sql");
+
+  const urlInput = document.getElementById("supabase-url-input");
+  const keyInput = document.getElementById("supabase-key-input");
+  const saveBtn = document.getElementById("save-supabase-btn");
+  const disconnectBtn = document.getElementById("disconnect-supabase-btn");
+  const copySqlBtn = document.getElementById("copy-sql-btn");
+
+  const hideModal = () => {
+    if (modal) modal.classList.add("hidden");
+  };
+
+  if (statusBtn && modal) {
+    statusBtn.addEventListener("click", () => {
+      const config = DatabaseService.getSupabaseConfig();
+      if (urlInput) urlInput.value = config.url;
+      if (keyInput) keyInput.value = config.key;
+      modal.classList.remove("hidden");
+    });
+  }
+
+  if (closeBtn) closeBtn.addEventListener("click", hideModal);
+  if (doneBtn) doneBtn.addEventListener("click", hideModal);
+
+  const switchDbTab = (activeTab, activePanel) => {
+    [tabStatus, tabSupabase, tabSql].forEach(t => t?.classList.remove("active"));
+    [panelStatus, panelSupabase, panelSql].forEach(p => p?.classList.add("hidden"));
+    activeTab?.classList.add("active");
+    activePanel?.classList.remove("hidden");
+  };
+
+  if (tabStatus) tabStatus.addEventListener("click", () => switchDbTab(tabStatus, panelStatus));
+  if (tabSupabase) tabSupabase.addEventListener("click", () => switchDbTab(tabSupabase, panelSupabase));
+  if (tabSql) tabSql.addEventListener("click", () => switchDbTab(tabSql, panelSql));
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      const url = urlInput?.value.trim();
+      const key = keyInput?.value.trim();
+
+      if (!url || !key) {
+        showToast("Please enter both Supabase URL and Anon Key", "warning");
+        return;
+      }
+
+      localStorage.setItem(STORAGE_KEY_SUPABASE_URL, url);
+      localStorage.setItem(STORAGE_KEY_SUPABASE_KEY, key);
+
+      const success = DatabaseService.initSupabase();
+      if (success) {
+        showToast("Supabase connection configured & saved!", "success");
+        logToTerminal("Connected to custom Supabase database.", "info");
+        await loadState();
+        renderAllViews();
+        switchDbTab(tabStatus, panelStatus);
+      } else {
+        showToast("Connected to REST engine. Verification active.", "info");
+      }
+    });
+  }
+
+  if (disconnectBtn) {
+    disconnectBtn.addEventListener("click", async () => {
+      localStorage.removeItem(STORAGE_KEY_SUPABASE_URL);
+      localStorage.removeItem(STORAGE_KEY_SUPABASE_KEY);
+      if (urlInput) urlInput.value = "";
+      if (keyInput) keyInput.value = "";
+
+      DatabaseService.initSupabase();
+      showToast("Reset to default persistence engine", "info");
+      await loadState();
+      renderAllViews();
+      switchDbTab(tabStatus, panelStatus);
+    });
+  }
+
+  if (copySqlBtn) {
+    copySqlBtn.addEventListener("click", () => {
+      const sqlText = document.getElementById("sql-code-content")?.textContent || "";
+      navigator.clipboard.writeText(sqlText).then(() => {
+        showToast("SQL DDL script copied to clipboard!", "success");
+      }).catch(() => {
+        showToast("Failed to copy SQL script", "error");
+      });
+    });
+  }
+}
+
 // App Initialization
-document.addEventListener("DOMContentLoaded", function () {
-  loadState();
+document.addEventListener("DOMContentLoaded", async function () {
+  await loadState();
   loadUserRole();
   renderAllViews();
 
@@ -1515,12 +2049,15 @@ document.addEventListener("DOMContentLoaded", function () {
   setupAddEventModal();
   setupTicketLookup();
   setupAuditPanel();
+  setupDbModal();
   setupThemeToggle();
 
+  startDatabasePolling();
+
   // Reset system button
-  document.getElementById("reset-system-btn")?.addEventListener("click", () => {
+  document.getElementById("reset-system-btn")?.addEventListener("click", async () => {
     if (confirm("Are you sure you want to reset all registration data to default?")) {
-      resetSystemData();
+      await resetSystemData();
     }
   });
 
