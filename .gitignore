@@ -1,0 +1,6 @@
+# Local deployment configuration — never commit real credentials.
+vercel.env
+.env
+.env.local
+node_modules/
+dist/

@@ -58,6 +58,7 @@ let supabaseClient = null;
 let dbPollingTimer = null;
 let realtimeChannel = null;
 let lastStateHash = "";
+let runtimeSupabaseConfig = null;
 
 // ==========================================
 // REAL DATABASE & SUPABASE PERSISTENCE ENGINE
@@ -95,14 +96,30 @@ function clearNetworkConsole() {
 
 class DatabaseService {
   static getSupabaseConfig() {
+    const savedUrl = localStorage.getItem(STORAGE_KEY_SUPABASE_URL);
+    const savedKey = localStorage.getItem(STORAGE_KEY_SUPABASE_KEY);
     return {
-      // Connection settings stay in this browser and are never committed to source control.
-      url: localStorage.getItem(STORAGE_KEY_SUPABASE_URL) || "",
-      key: localStorage.getItem(STORAGE_KEY_SUPABASE_KEY) || ""
+      // Local values are a development fallback; Vercel config is the production default.
+      url: savedUrl || runtimeSupabaseConfig?.url || "",
+      key: savedKey || runtimeSupabaseConfig?.key || ""
     };
   }
 
+  static async loadRuntimeSupabaseConfig() {
+    if (runtimeSupabaseConfig || !window.location.protocol.startsWith("http")) return runtimeSupabaseConfig;
+    try {
+      const response = await fetch("/api/runtime-config", { cache: "no-store" });
+      if (!response.ok) return null;
+      const config = await response.json();
+      if (config?.url && config?.key) runtimeSupabaseConfig = config;
+    } catch (error) {
+      console.info("Runtime Supabase configuration unavailable; using local configuration if present.");
+    }
+    return runtimeSupabaseConfig;
+  }
+
   static async initSupabase() {
+    await this.loadRuntimeSupabaseConfig();
     const { url, key } = this.getSupabaseConfig();
     if (url && key && window.supabase) {
       try {
