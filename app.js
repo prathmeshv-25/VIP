@@ -60,6 +60,10 @@ let realtimeChannel = null;
 let lastStateHash = "";
 let runtimeSupabaseConfig = null;
 
+// Team VIP Production Supabase Credentials (safe browser-only anon key)
+const DEFAULT_SUPABASE_URL = "https://bntiigihpnoucodgcacy.supabase.co";
+const DEFAULT_SUPABASE_KEY = "sb_publishable_phMG4dt_U0zd1_z2MvsLpQ_JI0Ed1Ye";
+
 // ==========================================
 // REAL DATABASE & SUPABASE PERSISTENCE ENGINE
 // ==========================================
@@ -99,9 +103,9 @@ class DatabaseService {
     const savedUrl = localStorage.getItem(STORAGE_KEY_SUPABASE_URL);
     const savedKey = localStorage.getItem(STORAGE_KEY_SUPABASE_KEY);
     return {
-      // Local values are a development fallback; Vercel config is the production default.
-      url: savedUrl || runtimeSupabaseConfig?.url || "",
-      key: savedKey || runtimeSupabaseConfig?.key || ""
+      // Priority: localStorage → Vercel runtime config → hardcoded defaults
+      url: savedUrl || runtimeSupabaseConfig?.url || DEFAULT_SUPABASE_URL,
+      key: savedKey || runtimeSupabaseConfig?.key || DEFAULT_SUPABASE_KEY
     };
   }
 
@@ -1338,6 +1342,12 @@ function switchTab(viewName) {
     }
   });
 
+  // Destructive system controls belong to admins only.
+  const resetSystemButton = document.getElementById("reset-system-btn");
+  if (resetSystemButton) {
+    resetSystemButton.classList.toggle("hidden", currentUserRole !== "admin");
+  }
+
   // Update Sections
   document.querySelectorAll(".view-section").forEach(sec => {
     if (sec.id === `section-${viewName}`) {
@@ -2073,6 +2083,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // Reset system button
   document.getElementById("reset-system-btn")?.addEventListener("click", async () => {
+    if (currentUserRole !== "admin") {
+      showToast("Reset System is restricted to administrators.", "error");
+      return;
+    }
     if (confirm("Are you sure you want to reset all registration data to default?")) {
       await resetSystemData();
     }

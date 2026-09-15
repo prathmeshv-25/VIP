@@ -1616,3 +1616,181 @@ body {
   color: var(--text-muted);
 }
 
+/* ==========================================================================
+   DATABASE PERSISTENCE & SYSTEM ARCHITECTURE FLOW STYLES
+   ========================================================================== */
+
+/* DB Status Badge in Header */
+.db-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.db-status-badge:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.db-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+  display: inline-block;
+}
+
+.db-pulse-dot.online {
+  background-color: var(--color-success);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.db-pulse-dot.pulse-active {
+  animation: pulsePing 0.8s cubic-bezier(0, 0, 0.2, 1);
+}
+
+@keyframes pulsePing {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(2.2); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* System Architecture Flow Diagram */
+.architecture-diagram-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.arch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.arch-flow-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 1rem 0;
+}
+
+.arch-node {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 130px;
+  flex: 1;
+  transition: all var(--transition-normal);
+}
+
+.arch-node:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.arch-node-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.arch-node-icon.student { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.arch-node-icon.api-icon { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.arch-node-icon.db-icon { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.arch-node-icon.seat-icon { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.arch-node-icon.admin-icon { background: rgba(236, 72, 153, 0.15); color: #ec4899; }
+
+.arch-node strong {
+  font-size: 0.85rem;
+  margin-bottom: 0.15rem;
+}
+
+.arch-node small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.arch-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 0 0.25rem;
+}
+
+.arch-arrow i {
+  color: var(--accent-primary);
+  font-size: 0.9rem;
+}
+
+.arch-label {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Dual Terminal Grid */
+.dual-terminal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 992px) {
+  .dual-terminal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.network-log-console .terminal-header {
+  border-bottom-color: rgba(16, 185, 129, 0.2);
+}
+
+/* Modal Code Block & Database Panels */
+.sql-code-block {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #a5b4fc;
+  overflow-x: auto;
+  max-height: 280px;
+  line-height: 1.5;
+}
+
+.text-warn { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+.text-success { color: var(--color-success); }
+
