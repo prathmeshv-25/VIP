@@ -1336,7 +1336,7 @@ DECLARE v_event public.events%ROWTYPE;
 BEGIN
   UPDATE public.events AS e
   SET registered = e.registered + 1
-  WHERE e.id = p_event_id AND e.registered < e.seats
+  WHERE e.id = p_event_id AND e.registered &lt; e.seats
   RETURNING e.* INTO v_event;
 
   IF NOT FOUND THEN
