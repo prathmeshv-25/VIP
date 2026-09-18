@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EventHub — PS4 Seat Management & Registration System</title>
-  <meta name="description" content="Bug-free, single-source-of-truth event registration and seat management system for tech events.">
+  <title>EventHub</title>
+  <meta name="description" content="Event Registration & Seat Management System for tech events.">
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Iconify Web Component (React Icons Engine) -->
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.1.0/dist/iconify-icon.min.js"></script>
   <!-- Supabase JS Client SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="dark-theme">
+<body class="light-theme">
 
   <!-- ============================================ -->
   <!-- ENTRY / LOGIN SCREEN (shown when no role set) -->
@@ -24,64 +24,244 @@
     <div class="entry-card">
       <div class="entry-brand">
         <div class="brand-icon brand-icon-lg">
-          <i class="fa-solid fa-ticket"></i>
+          <iconify-icon icon="fa6-solid:ticket" width="30" height="30"></iconify-icon>
         </div>
-        <h1>EventHub <span class="badge-ps4">PS4</span></h1>
+        <h1>EventHub</h1>
         <p class="text-muted">Event Registration & Seat Management System</p>
       </div>
 
-      <div class="entry-options">
-        <button id="login-student-btn" class="entry-btn student-btn">
+      <!-- Entry Options / Quick Select Cards -->
+      <div id="entry-options" class="entry-options">
+        <button id="show-student-login-btn" class="entry-btn student-btn">
           <div class="entry-btn-icon">
-            <i class="fa-solid fa-user-graduate"></i>
+            <iconify-icon icon="fa6-solid:user-graduate"></iconify-icon>
           </div>
           <div class="entry-btn-text">
-            <strong>Continue as Student</strong>
-            <small>Browse events, register & book seats</small>
+            <strong>Student Login</strong>
+            <small>Sign in to your student account</small>
           </div>
-          <i class="fa-solid fa-arrow-right entry-arrow"></i>
+          <iconify-icon icon="fa6-solid:arrow-right" class="entry-arrow"></iconify-icon>
+        </button>
+
+        <button id="show-student-signup-btn" class="entry-btn student-signup-btn">
+          <div class="entry-btn-icon" style="background-color: rgba(16, 185, 129, 0.15); color: #10b981;">
+            <iconify-icon icon="fa6-solid:user-plus"></iconify-icon>
+          </div>
+          <div class="entry-btn-text">
+            <strong>Create Student Account</strong>
+            <small>New student? Register your account</small>
+          </div>
+          <iconify-icon icon="fa6-solid:arrow-right" class="entry-arrow"></iconify-icon>
         </button>
 
         <div class="entry-divider"><span>or</span></div>
 
-        <button id="login-admin-btn" class="entry-btn admin-btn">
+        <button id="show-admin-login-btn" class="entry-btn admin-btn">
           <div class="entry-btn-icon">
-            <i class="fa-solid fa-user-shield"></i>
+            <iconify-icon icon="fa6-solid:user-shield"></iconify-icon>
           </div>
           <div class="entry-btn-text">
             <strong>Admin Login</strong>
-            <small>Dashboard, analytics & audit tools</small>
+            <small>Dashboard, analytics & management</small>
           </div>
-          <i class="fa-solid fa-arrow-right entry-arrow"></i>
+          <iconify-icon icon="fa6-solid:arrow-right" class="entry-arrow"></iconify-icon>
         </button>
       </div>
 
-      <!-- Admin Password Prompt (hidden by default) -->
-      <div id="admin-password-box" class="admin-password-box hidden">
-        <label for="admin-password-input">
-          <i class="fa-solid fa-lock"></i> Enter Admin Password
-        </label>
-        <div class="password-input-row">
-          <input 
-            type="password" 
-            id="admin-password-input" 
-            class="form-control" 
-            placeholder="Password" 
-            autocomplete="off"
-          >
-          <button id="admin-password-submit" class="btn btn-primary">
-            <i class="fa-solid fa-right-to-bracket"></i> Login
+      <!-- Student Login Form -->
+      <div id="student-login-box" class="admin-password-box hidden">
+        <div class="auth-box-header">
+          <h3><iconify-icon icon="fa6-solid:user-graduate"></iconify-icon> Student Login</h3>
+          <p class="text-muted">Enter your registered college email and password</p>
+        </div>
+        <form id="student-login-form" autocomplete="off" style="margin-top:1rem;">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="student-email-input">
+              <iconify-icon icon="fa6-solid:envelope"></iconify-icon> College Email
+            </label>
+            <input
+              type="email"
+              id="student-email-input"
+              class="form-control"
+              placeholder="student@college.edu"
+              required
+            >
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label for="student-password-input">
+              <iconify-icon icon="fa6-solid:lock"></iconify-icon> Password
+            </label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="student-password-input"
+                class="form-control"
+                placeholder="••••••••"
+                required
+              >
+              <button type="button" class="password-toggle-btn" title="Show/Hide Password" data-target="student-password-input">
+                <iconify-icon icon="fa6-solid:eye"></iconify-icon>
+              </button>
+            </div>
+          </div>
+          <button id="student-login-submit" type="submit" class="btn btn-primary" style="width:100%;">
+            <iconify-icon icon="fa6-solid:right-to-bracket"></iconify-icon> Login
+          </button>
+          <div id="student-login-error" class="password-error hidden"></div>
+        </form>
+        <div class="auth-box-footer" style="margin-top:1rem; display:flex; justify-content:space-between; align-items:center;">
+          <button id="student-login-cancel" class="btn-text-action">
+            <iconify-icon icon="fa6-solid:arrow-left"></iconify-icon> Back
+          </button>
+          <button id="switch-to-signup-btn" class="btn-text-action" style="color:var(--accent-primary);">
+            Need an account? Sign Up
           </button>
         </div>
-        <div id="admin-password-error" class="password-error hidden">
-          <i class="fa-solid fa-circle-xmark"></i> Incorrect password. Try again.
-        </div>
-        <button id="admin-password-cancel" class="btn-text-action" style="margin-top:0.5rem;">
-          <i class="fa-solid fa-arrow-left"></i> Back
-        </button>
       </div>
 
-      <p class="entry-footer-text">Developed by <strong>Team VIP</strong> &middot; Single Source of Truth &middot; Vanilla JS</p>
+      <!-- Student Sign Up Form -->
+      <div id="student-signup-box" class="admin-password-box hidden">
+        <div class="auth-box-header">
+          <h3><iconify-icon icon="fa6-solid:user-plus"></iconify-icon> Create Student Account</h3>
+          <p class="text-muted">Register with your full name, email, and roll number</p>
+        </div>
+        <form id="student-signup-form" autocomplete="off" style="margin-top:1rem;">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="student-signup-name">
+              <iconify-icon icon="fa6-solid:user"></iconify-icon> Full Name
+            </label>
+            <input
+              type="text"
+              id="student-signup-name"
+              class="form-control"
+              placeholder="Rahul Sharma"
+              required
+            >
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="student-signup-email">
+              <iconify-icon icon="fa6-solid:envelope"></iconify-icon> College Email
+            </label>
+            <input
+              type="email"
+              id="student-signup-email"
+              class="form-control"
+              placeholder="rahul@college.edu"
+              required
+            >
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="student-signup-roll">
+              <iconify-icon icon="fa6-solid:id-card"></iconify-icon> Roll Number
+            </label>
+            <input
+              type="text"
+              id="student-signup-roll"
+              class="form-control"
+              placeholder="IT101"
+              required
+            >
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="student-signup-password">
+              <iconify-icon icon="fa6-solid:lock"></iconify-icon> Password
+            </label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="student-signup-password"
+                class="form-control"
+                placeholder="••••••••"
+                required
+              >
+              <button type="button" class="password-toggle-btn" title="Show/Hide Password" data-target="student-signup-password">
+                <iconify-icon icon="fa6-solid:eye"></iconify-icon>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label for="student-signup-confirm">
+              <iconify-icon icon="fa6-solid:shield-halved"></iconify-icon> Confirm Password
+            </label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="student-signup-confirm"
+                class="form-control"
+                placeholder="••••••••"
+                required
+              >
+              <button type="button" class="password-toggle-btn" title="Show/Hide Password" data-target="student-signup-confirm">
+                <iconify-icon icon="fa6-solid:eye"></iconify-icon>
+              </button>
+            </div>
+          </div>
+          <button id="student-signup-submit" type="submit" class="btn btn-primary" style="width:100%;">
+            <iconify-icon icon="fa6-solid:user-check"></iconify-icon> Create Account
+          </button>
+          <div id="student-signup-error" class="password-error hidden"></div>
+        </form>
+        <div class="auth-box-footer" style="margin-top:1rem; display:flex; justify-content:space-between; align-items:center;">
+          <button id="student-signup-cancel" class="btn-text-action">
+            <iconify-icon icon="fa6-solid:arrow-left"></iconify-icon> Back
+          </button>
+          <button id="switch-to-login-btn" class="btn-text-action" style="color:var(--accent-primary);">
+            Already registered? Login
+          </button>
+        </div>
+      </div>
+
+      <!-- Admin Login Form -->
+      <div id="admin-login-box" class="admin-password-box hidden">
+        <div class="auth-box-header">
+          <h3><iconify-icon icon="fa6-solid:user-shield"></iconify-icon> Admin Login</h3>
+          <p class="text-muted">Enter administrator email and credentials</p>
+        </div>
+        <form id="admin-login-form" autocomplete="off" style="margin-top:1rem;">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label for="admin-email-input">
+              <iconify-icon icon="fa6-solid:envelope"></iconify-icon> Admin Email
+            </label>
+            <input
+              type="email"
+              id="admin-email-input"
+              class="form-control"
+              placeholder="admin@example.com"
+              autocomplete="username"
+              required
+            >
+          </div>
+          <div class="form-group" style="margin-bottom:1rem;">
+            <label for="admin-password-input">
+              <iconify-icon icon="fa6-solid:lock"></iconify-icon> Password
+            </label>
+            <div class="password-wrapper">
+              <input
+                type="password"
+                id="admin-password-input"
+                class="form-control"
+                placeholder="Admin password"
+                autocomplete="current-password"
+                required
+              >
+              <button type="button" class="password-toggle-btn" title="Show/Hide Password" data-target="admin-password-input">
+                <iconify-icon icon="fa6-solid:eye"></iconify-icon>
+              </button>
+            </div>
+          </div>
+          <button id="admin-login-submit" type="submit" class="btn btn-primary" style="width:100%;">
+            <iconify-icon icon="fa6-solid:right-to-bracket"></iconify-icon> Sign In
+          </button>
+          <div id="admin-login-error" class="password-error hidden"></div>
+        </form>
+        <div class="auth-box-footer" style="margin-top:1rem;">
+          <button id="admin-login-cancel" class="btn-text-action">
+            <iconify-icon icon="fa6-solid:arrow-left"></iconify-icon> Back
+          </button>
+        </div>
+      </div>
+
+      <p class="entry-footer-text">Developed by <strong>Team VIP</strong></p>
     </div>
   </div>
 
@@ -95,49 +275,79 @@
     <div class="header-container">
       <div class="brand">
         <div class="brand-icon">
-          <i class="fa-solid fa-ticket"></i>
+          <iconify-icon icon="fa6-solid:ticket" width="20" height="20"></iconify-icon>
         </div>
         <div class="brand-text">
-          <h1>EventHub <span class="badge-ps4">PS4 Edition</span></h1>
-          <p class="subtitle">Single Source of Truth Seat Booking System</p>
+          <h1>EventHub</h1>
+          <p class="subtitle">Event Registration & Seat Management System</p>
         </div>
       </div>
 
       <nav class="nav-tabs" role="tablist">
-        <button class="tab-btn active" data-tab="catalog" data-role="student" id="tab-catalog" role="tab">
-          <i class="fa-solid fa-calendar-days"></i> Events
+        <button class="tab-btn active" data-tab="catalog" data-role="student,admin" id="tab-catalog" role="tab">
+          <iconify-icon icon="fa6-solid:calendar-days"></iconify-icon> Events
         </button>
         <button class="tab-btn" data-tab="register" data-role="student" id="tab-register" role="tab">
-          <i class="fa-solid fa-user-plus"></i> Register
+          <iconify-icon icon="fa6-solid:user-plus"></iconify-icon> Register
         </button>
         <button class="tab-btn" data-tab="mytickets" data-role="student" id="tab-mytickets" role="tab">
-          <i class="fa-solid fa-ticket-simple"></i> My Tickets
+          <iconify-icon icon="fa6-solid:ticket-simple"></iconify-icon> My Tickets
         </button>
         <button class="tab-btn" data-tab="admin" data-role="admin" id="tab-admin" role="tab">
-          <i class="fa-solid fa-chart-pie"></i> Admin Dashboard
-        </button>
-        <button class="tab-btn" data-tab="audit" data-role="admin" id="tab-audit" role="tab">
-          <i class="fa-solid fa-microchip"></i> Audit Suite
+          <iconify-icon icon="fa6-solid:chart-pie"></iconify-icon> Dashboard
         </button>
       </nav>
 
       <div class="header-actions">
-        <button id="db-status-btn" class="db-status-badge" title="Database Connection & Supabase Settings">
+        <button id="db-status-btn" class="db-status-badge" data-role="admin" title="Database Connection & Supabase Settings">
           <span id="db-pulse-dot" class="db-pulse-dot online"></span>
-          <i class="fa-solid fa-database"></i>
+          <iconify-icon icon="fa6-solid:database"></iconify-icon>
           <span id="db-status-text">Live DB</span>
         </button>
-        <span id="role-badge" class="role-badge">
-          <span id="role-badge-text">Student</span>
-        </span>
+
+        <!-- Profile Menu Wrapper -->
+        <div class="profile-menu-wrapper" data-role="student,admin">
+          <button id="profile-menu-btn" class="profile-trigger-btn" title="View Profile Options">
+            <span id="role-badge" class="role-badge role-student">
+              <span id="role-badge-text">Student</span>
+            </span>
+            <iconify-icon icon="fa6-solid:chevron-down" style="font-size:0.7rem;"></iconify-icon>
+          </button>
+          
+          <div id="profile-dropdown-card" class="profile-card-popover hidden">
+            <div class="profile-card-header">
+              <div class="profile-avatar">
+                <iconify-icon id="profile-card-icon" icon="fa6-solid:user-graduate"></iconify-icon>
+              </div>
+              <div class="profile-info">
+                <strong id="profile-card-name">Rahul Sharma</strong>
+                <small id="profile-card-email" class="text-muted">student@college.edu</small>
+                <span id="profile-card-roll" class="badge badge-secondary" style="font-size:0.7rem;margin-top:0.25rem;">Roll: IT101</span>
+              </div>
+            </div>
+            <hr class="profile-divider">
+            <div class="profile-card-actions">
+              <button id="profile-nav-events-btn" class="btn btn-sm btn-outline-primary style-profile-action">
+                <iconify-icon icon="fa6-solid:calendar-days"></iconify-icon> My Events
+              </button>
+              <button id="profile-nav-tickets-btn" class="btn btn-sm btn-outline-primary style-profile-action">
+                <iconify-icon icon="fa6-solid:ticket-simple"></iconify-icon> My Tickets
+              </button>
+              <button id="profile-logout-btn" class="btn btn-sm btn-danger style-profile-action">
+                <iconify-icon icon="fa6-solid:right-from-bracket"></iconify-icon> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+
         <button id="theme-toggle-btn" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
-          <i class="fa-solid fa-sun"></i>
+          <iconify-icon icon="fa6-solid:sun"></iconify-icon>
         </button>
-        <button id="reset-system-btn" class="btn btn-outline-danger btn-sm" title="Reset all data to default">
-          <i class="fa-solid fa-rotate-left"></i> Reset System
+        <button id="reset-system-btn" class="btn btn-outline-danger btn-sm" data-role="admin" title="Reset all data to default">
+          <iconify-icon icon="fa6-solid:rotate-left"></iconify-icon> Reset System
         </button>
         <button id="logout-btn" class="btn btn-outline-secondary btn-sm" title="Logout and switch role">
-          <i class="fa-solid fa-right-from-bracket"></i> Logout
+          <iconify-icon icon="fa6-solid:right-from-bracket"></iconify-icon> Logout
         </button>
       </div>
     </div>
@@ -157,8 +367,8 @@
           <p class="text-muted">Browse upcoming events and check real-time seat availability.</p>
         </div>
         <div class="quick-stats-pills">
-          <span class="pill pill-primary"><i class="fa-solid fa-layer-group"></i> Total Events: <strong id="stat-total-events">3</strong></span>
-          <span class="pill pill-success"><i class="fa-solid fa-chair"></i> Total Seats Available: <strong id="stat-total-available">95</strong></span>
+          <span class="pill pill-primary"><iconify-icon icon="fa6-solid:layer-group"></iconify-icon> Total Events: <strong id="stat-total-events">3</strong></span>
+          <span class="pill pill-success"><iconify-icon icon="fa6-solid:chair"></iconify-icon> Total Seats Available: <strong id="stat-total-available">95</strong></span>
         </div>
       </div>
 
@@ -173,7 +383,7 @@
         <div class="form-card">
           <div class="form-card-header">
             <div class="form-title">
-              <i class="fa-solid fa-id-card"></i>
+              <iconify-icon icon="fa6-solid:id-card"></iconify-icon>
               <h2>Register for Event</h2>
             </div>
             <p class="text-muted">Fill in your details accurately to book your seat.</p>
@@ -181,14 +391,14 @@
 
           <!-- Alert banner inside form for validation errors -->
           <div id="form-alert" class="alert alert-danger hidden" role="alert">
-            <i class="fa-solid fa-triangle-exclamation alert-icon"></i>
+            <iconify-icon icon="fa6-solid:triangle-exclamation" class="alert-icon"></iconify-icon>
             <span id="form-alert-msg">Error message goes here</span>
           </div>
 
           <form id="registration-form" novalidate>
             <div class="form-group">
               <label for="student-name">
-                <i class="fa-solid fa-user"></i> Full Name <span class="required">*</span>
+                <iconify-icon icon="fa6-solid:user"></iconify-icon> Full Name <span class="required">*</span>
               </label>
               <input 
                 type="text" 
@@ -204,7 +414,7 @@
 
             <div class="form-group">
               <label for="roll-number">
-                <i class="fa-solid fa-hashtag"></i> Roll Number <span class="required">*</span>
+                <iconify-icon icon="fa6-solid:hashtag"></iconify-icon> Roll Number <span class="required">*</span>
               </label>
               <input 
                 type="text" 
@@ -220,7 +430,7 @@
 
             <div class="form-group">
               <label for="event-select">
-                <i class="fa-solid fa-calendar-check"></i> Select Event <span class="required">*</span>
+                <iconify-icon icon="fa6-solid:calendar-check"></iconify-icon> Select Event <span class="required">*</span>
               </label>
               <select id="event-select" name="eventId" class="form-control select-control" required>
                 <option value="">-- Choose an Event --</option>
@@ -233,8 +443,8 @@
 
             <div class="form-actions">
               <button type="submit" id="submit-reg-btn" class="btn btn-primary btn-block btn-lg">
-                <span class="btn-text"><i class="fa-solid fa-circle-check"></i> Register Now</span>
-                <span class="btn-spinner hidden"><i class="fa-solid fa-circle-notch fa-spin"></i> Processing...</span>
+                <span class="btn-text"><iconify-icon icon="fa6-solid:circle-check"></iconify-icon> Register Now</span>
+                <span class="btn-spinner hidden"><iconify-icon icon="fa6-solid:circle-notch" class="spin"></iconify-icon> Processing...</span>
               </button>
             </div>
           </form>
@@ -242,24 +452,24 @@
 
         <!-- Form Info Sidebar -->
         <div class="form-sidebar-card">
-          <h3><i class="fa-solid fa-shield-halved"></i> Seat Guarantee Policy</h3>
+          <h3><iconify-icon icon="fa6-solid:shield-halved"></iconify-icon> Seat Guarantee Policy</h3>
           <ul class="policy-list">
             <li>
-              <i class="fa-solid fa-check text-success"></i>
+              <iconify-icon icon="fa6-solid:check" class="text-success"></iconify-icon>
               <div>
                 <strong>Single Source of Truth</strong>
                 <p>Available seats are strictly derived from <code>totalSeats - registeredCount</code>.</p>
               </div>
             </li>
             <li>
-              <i class="fa-solid fa-lock text-primary"></i>
+              <iconify-icon icon="fa6-solid:lock" class="text-primary"></iconify-icon>
               <div>
                 <strong>Double-Click Protected</strong>
                 <p>Concurrent clicks are locked instantly to avoid multiple seat deductions.</p>
               </div>
             </li>
             <li>
-              <i class="fa-solid fa-ban text-danger"></i>
+              <iconify-icon icon="fa6-solid:ban" class="text-danger"></iconify-icon>
               <div>
                 <strong>Strict Overbooking Guard</strong>
                 <p>If an event reaches 0 seats, form submissions are rejected at the JS core level.</p>
@@ -270,131 +480,250 @@
       </div>
     </section>
 
-    <!-- SECTION 3: ADMIN DASHBOARD (PHASE 6) -->
+    <!-- SECTION 3: ADMIN DASHBOARD (PHASE 5 & 5.1) -->
     <section id="section-admin" class="view-section">
       <div class="section-header">
         <div>
-          <h2><i class="fa-solid fa-chart-pie"></i> Admin Dashboard</h2>
-          <p class="text-muted">Live event analytics & student enrollment registry</p>
+          <h2><iconify-icon icon="fa6-solid:user-shield"></iconify-icon> Admin Event Management</h2>
+          <p class="text-muted">Manage events, track lifecycle states, oversee registrations and student accounts.</p>
         </div>
         <div class="admin-quick-actions" style="display:flex; gap:0.5rem;">
           <button id="open-add-event-modal-btn" class="btn btn-primary btn-sm">
-            <i class="fa-solid fa-plus"></i> Add New Event
+            <iconify-icon icon="fa6-solid:plus"></iconify-icon> Create New Event
           </button>
           <button id="export-csv-btn" class="btn btn-outline-secondary btn-sm">
-            <i class="fa-solid fa-file-csv"></i> Export CSV
+            <iconify-icon icon="fa6-solid:file-csv"></iconify-icon> Export CSV
           </button>
         </div>
       </div>
 
-      <!-- Key Metrics Overview Cards -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-icon primary">
-            <i class="fa-solid fa-calendar"></i>
-          </div>
-          <div class="metric-details">
-            <span class="metric-title">Total Events</span>
-            <span class="metric-value" id="admin-metric-events">3</span>
-          </div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-icon info">
-            <i class="fa-solid fa-users"></i>
-          </div>
-          <div class="metric-details">
-            <span class="metric-title">Total Capacity</span>
-            <span class="metric-value" id="admin-metric-capacity">95</span>
-          </div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-icon success">
-            <i class="fa-solid fa-user-check"></i>
-          </div>
-          <div class="metric-details">
-            <span class="metric-title">Total Registered</span>
-            <span class="metric-value" id="admin-metric-registered">0</span>
-          </div>
-        </div>
-
-        <div class="metric-card">
-          <div class="metric-icon warning">
-            <i class="fa-solid fa-couch"></i>
-          </div>
-          <div class="metric-details">
-            <span class="metric-title">Total Available</span>
-            <span class="metric-value" id="admin-metric-available">95</span>
-          </div>
-        </div>
+      <!-- Admin Sub-navigation Bar -->
+      <div class="admin-subnav-bar mb-4">
+        <button class="admin-nav-tab active" data-subtab="overview">
+          <iconify-icon icon="fa6-solid:chart-pie"></iconify-icon> Overview
+        </button>
+        <button class="admin-nav-tab" data-subtab="events">
+          <iconify-icon icon="fa6-solid:calendar-days"></iconify-icon> Events
+        </button>
+        <button class="admin-nav-tab" data-subtab="registrations">
+          <iconify-icon icon="fa6-solid:list-check"></iconify-icon> Registrations
+        </button>
+        <button class="admin-nav-tab" data-subtab="students">
+          <iconify-icon icon="fa6-solid:user-graduate"></iconify-icon> Students
+        </button>
+        <button class="admin-nav-tab" data-subtab="tickets">
+          <iconify-icon icon="fa6-solid:ticket"></iconify-icon> Tickets
+        </button>
+        <button class="admin-nav-tab" data-subtab="audit">
+          <iconify-icon icon="fa6-solid:terminal"></iconify-icon> Audit Logs
+        </button>
       </div>
 
-      <!-- Event Seat Breakdown Section -->
-      <div class="admin-card mb-4">
-        <div class="card-header-flex">
-          <h3><i class="fa-solid fa-list-check"></i> Event Breakdown & Seat Status</h3>
-          <small class="text-muted">Derived from core events array</small>
-        </div>
-        <div id="admin-events-list" class="admin-events-grid">
-          <!-- Rendered by app.js -->
-        </div>
-      </div>
-
-      <!-- Registrations Data Table -->
-      <div class="admin-card">
-        <div class="card-header-flex">
-          <h3><i class="fa-solid fa-table-list"></i> Student Registrations</h3>
-          <div class="table-controls">
-            <div class="search-box">
-              <i class="fa-solid fa-magnifying-glass search-icon"></i>
-              <input type="text" id="table-search" placeholder="Search name or roll no..." class="form-control form-control-sm">
+      <!-- SUB-TAB 1: OVERVIEW -->
+      <div id="subtab-overview" class="admin-subview active">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon primary">
+              <iconify-icon icon="fa6-solid:calendar"></iconify-icon>
             </div>
-            <select id="table-filter-event" class="form-control form-control-sm">
-              <option value="ALL">All Events</option>
-              <!-- Populated dynamically -->
-            </select>
+            <div class="metric-details">
+              <span class="metric-title">Total Events</span>
+              <span class="metric-value" id="admin-metric-events">3</span>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon info">
+              <iconify-icon icon="fa6-solid:users"></iconify-icon>
+            </div>
+            <div class="metric-details">
+              <span class="metric-title">Total Capacity</span>
+              <span class="metric-value" id="admin-metric-capacity">95</span>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon success">
+              <iconify-icon icon="fa6-solid:user-check"></iconify-icon>
+            </div>
+            <div class="metric-details">
+              <span class="metric-title">Total Registered</span>
+              <span class="metric-value" id="admin-metric-registered">0</span>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon warning">
+              <iconify-icon icon="fa6-solid:couch"></iconify-icon>
+            </div>
+            <div class="metric-details">
+              <span class="metric-title">Total Available</span>
+              <span class="metric-value" id="admin-metric-available">95</span>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div class="table-responsive">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Registration ID</th>
-                <th>Student Name</th>
-                <th>Roll No</th>
-                <th>Event Name</th>
-                <th>Registered At</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="registrations-table-body">
-              <!-- Rendered dynamically by app.js -->
-            </tbody>
-          </table>
+      <!-- SUB-TAB 2: EVENTS (Full CRUD & Lifecycle State Control) -->
+      <div id="subtab-events" class="admin-subview hidden">
+        <div class="admin-card mb-4">
+          <div class="card-header-flex">
+            <h3><iconify-icon icon="fa6-solid:calendar-check"></iconify-icon> Event Lifecycle & Capacity Registry</h3>
+            <button class="btn btn-primary btn-sm" onclick="document.getElementById('open-add-event-modal-btn')?.click()">
+              <iconify-icon icon="fa6-solid:plus"></iconify-icon> Add Event
+            </button>
+          </div>
+          <div id="admin-events-list" class="admin-events-grid">
+            <!-- Rendered by dashboard.js -->
+          </div>
         </div>
-        <div id="empty-table-state" class="empty-state hidden">
-          <i class="fa-regular fa-folder-open empty-icon"></i>
-          <p>No registrations found matching your criteria.</p>
+      </div>
+
+      <!-- SUB-TAB 3: REGISTRATIONS -->
+      <div id="subtab-registrations" class="admin-subview hidden">
+        <div class="admin-card">
+          <div class="card-header-flex">
+            <h3><iconify-icon icon="fa6-solid:table-list"></iconify-icon> Student Registrations</h3>
+            <div class="table-controls">
+              <div class="search-box">
+                <iconify-icon icon="fa6-solid:magnifying-glass" class="search-icon"></iconify-icon>
+                <input type="text" id="table-search" placeholder="Search name or roll no..." class="form-control form-control-sm">
+              </div>
+              <select id="table-filter-event" class="form-control form-control-sm">
+                <option value="ALL">All Events</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Registration ID</th>
+                  <th>Student Name</th>
+                  <th>Roll No</th>
+                  <th>Event Name</th>
+                  <th>Registered At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="registrations-table-body">
+                <!-- Rendered dynamically by dashboard.js -->
+              </tbody>
+            </table>
+          </div>
+          <div id="empty-table-state" class="empty-state hidden">
+            <iconify-icon icon="fa6-regular:folder-open" class="empty-icon"></iconify-icon>
+            <p>No registrations found matching your criteria.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 4: STUDENTS DIRECTORY -->
+      <div id="subtab-students" class="admin-subview hidden">
+        <div class="admin-card">
+          <div class="card-header-flex">
+            <h3><iconify-icon icon="fa6-solid:user-graduate"></iconify-icon> Registered Students Directory</h3>
+            <div class="search-box">
+              <iconify-icon icon="fa6-solid:magnifying-glass" class="search-icon"></iconify-icon>
+              <input type="text" id="student-dir-search" placeholder="Search student name or roll..." class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Student Name</th>
+                  <th>Roll Number</th>
+                  <th>Registrations Count</th>
+                  <th>Last Event Registered</th>
+                </tr>
+              </thead>
+              <tbody id="students-table-body">
+                <!-- Rendered dynamically by dashboard.js -->
+              </tbody>
+            </table>
+          </div>
+          <div id="empty-students-state" class="empty-state hidden">
+            <iconify-icon icon="fa6-solid:user-slash" class="empty-icon"></iconify-icon>
+            <p>No student records found.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 5: TICKETS LOG -->
+      <div id="subtab-tickets" class="admin-subview hidden">
+        <div class="admin-card">
+          <div class="card-header-flex">
+            <h3><iconify-icon icon="fa6-solid:ticket"></iconify-icon> Issued Tickets & Verification Registry</h3>
+            <div class="search-box">
+              <iconify-icon icon="fa6-solid:magnifying-glass" class="search-icon"></iconify-icon>
+              <input type="text" id="ticket-log-search" placeholder="Search ticket code (e.g. EVT-)..." class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Ticket Code</th>
+                  <th>Event Name</th>
+                  <th>Student Name</th>
+                  <th>Roll No</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tickets-table-body">
+                <!-- Rendered dynamically by dashboard.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 6: AUDIT LOGS -->
+      <div id="subtab-audit" class="admin-subview hidden">
+        <div class="dual-terminal-grid">
+          <div class="test-log-terminal">
+            <div class="terminal-header">
+              <span><iconify-icon icon="fa6-solid:terminal"></iconify-icon> Diagnostic Terminal</span>
+              <button class="btn-text-action" onclick="clearTerminal()"><iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Clear</button>
+            </div>
+            <div id="terminal-body" class="terminal-body">
+              <p class="terminal-line text-muted">&gt; System logs active. Ready for diagnostics.</p>
+            </div>
+          </div>
+
+          <div class="test-log-terminal network-log-console">
+            <div class="terminal-header">
+              <span><iconify-icon icon="fa6-solid:wifi"></iconify-icon> Database REST API &mdash; Live Stream</span>
+              <button class="btn-text-action" onclick="clearNetworkConsole()"><iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Clear</button>
+            </div>
+            <div id="network-console-body" class="terminal-body">
+              <p class="terminal-line text-muted">&gt; Live REST Stream active.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- SECTION 4: AUTOMATED BUG AUDIT PANEL (FOR JUDGES) -->
-    <section id="section-audit" class="view-section">
+    <!-- SECTION 4: AUDIT SUITE (backend only — hidden from UI, JS logic intact in app.js) -->
+    <section id="section-audit" class="hidden" aria-hidden="true">
       <div class="section-header">
         <div>
-          <h2><i class="fa-solid fa-microchip"></i> System Integrity Audit Suite</h2>
+          <h2><iconify-icon icon="fa6-solid:microchip"></iconify-icon> System Integrity Audit Suite</h2>
           <p class="text-muted">Automated 9-point verification test suite for evaluation judges.</p>
         </div>
         <div class="audit-quick-actions" style="display:flex; gap:0.5rem;">
           <button id="run-all-tests-btn" class="btn btn-primary btn-sm">
-            <i class="fa-solid fa-play"></i> Run All 9 Tests
+            <iconify-icon icon="fa6-solid:play"></iconify-icon> Run All 9 Tests
           </button>
           <button id="clear-terminal-btn" class="btn btn-outline-secondary btn-sm">
-            <i class="fa-solid fa-eraser"></i> Clear Console
+            <iconify-icon icon="fa6-solid:eraser"></iconify-icon> Clear Console
           </button>
         </div>
       </div>
@@ -539,50 +868,50 @@
       <!-- VISUAL SYSTEM ARCHITECTURE FLOW DIAGRAM -->
       <div class="architecture-diagram-card mb-4">
         <div class="arch-header">
-          <h3><i class="fa-solid fa-network-wired"></i> Single Source of Truth System Architecture</h3>
-          <span class="badge badge-info"><i class="fa-solid fa-bolt"></i> Real-time DB Sync</span>
+          <h3><iconify-icon icon="fa6-solid:network-wired"></iconify-icon> Single Source of Truth System Architecture</h3>
+          <span class="badge badge-info"><iconify-icon icon="fa6-solid:bolt"></iconify-icon> Real-time DB Sync</span>
         </div>
         <p class="text-muted" style="margin-bottom: 1.25rem;">Multi-user seat booking and admin dashboard synchronization pipeline.</p>
         
         <div class="arch-flow-wrapper">
           <div class="arch-node">
-            <div class="arch-node-icon student"><i class="fa-solid fa-user-graduate"></i></div>
+            <div class="arch-node-icon student"><iconify-icon icon="fa6-solid:user-graduate"></iconify-icon></div>
             <strong>Student Browser</strong>
             <small>Registration &amp; My Tickets</small>
           </div>
           <div class="arch-arrow">
-            <i class="fa-solid fa-arrow-right"></i>
+            <iconify-icon icon="fa6-solid:arrow-right"></iconify-icon>
             <span class="arch-label">POST /api/register</span>
           </div>
           <div class="arch-node api">
-            <div class="arch-node-icon api-icon"><i class="fa-solid fa-gears"></i></div>
+            <div class="arch-node-icon api-icon"><iconify-icon icon="fa6-solid:gears"></iconify-icon></div>
             <strong>Registration API</strong>
             <small>Validation &amp; Lock</small>
           </div>
           <div class="arch-arrow">
-            <i class="fa-solid fa-arrow-right"></i>
+            <iconify-icon icon="fa6-solid:arrow-right"></iconify-icon>
             <span class="arch-label">Mutate Transaction</span>
           </div>
           <div class="arch-node db">
-            <div class="arch-node-icon db-icon"><i class="fa-solid fa-database"></i></div>
+            <div class="arch-node-icon db-icon"><iconify-icon icon="fa6-solid:database"></iconify-icon></div>
             <strong>Supabase / PostgREST</strong>
             <small>PostgreSQL DB</small>
           </div>
           <div class="arch-arrow">
-            <i class="fa-solid fa-arrow-right"></i>
+            <iconify-icon icon="fa6-solid:arrow-right"></iconify-icon>
             <span class="arch-label">Derive Seats</span>
           </div>
           <div class="arch-node seats">
-            <div class="arch-node-icon seat-icon"><i class="fa-solid fa-chair"></i></div>
+            <div class="arch-node-icon seat-icon"><iconify-icon icon="fa6-solid:chair"></iconify-icon></div>
             <strong>Seat Count</strong>
             <small>total - registered</small>
           </div>
           <div class="arch-arrow">
-            <i class="fa-solid fa-arrow-right"></i>
+            <iconify-icon icon="fa6-solid:arrow-right"></iconify-icon>
             <span class="arch-label">Live Sync (3s)</span>
           </div>
           <div class="arch-node admin">
-            <div class="arch-node-icon admin-icon"><i class="fa-solid fa-chart-line"></i></div>
+            <div class="arch-node-icon admin-icon"><iconify-icon icon="fa6-solid:chart-line"></iconify-icon></div>
             <strong>Admin Dashboard</strong>
             <small>Analytics &amp; CSV Export</small>
           </div>
@@ -593,8 +922,8 @@
       <div class="dual-terminal-grid">
         <div class="test-log-terminal">
           <div class="terminal-header">
-            <span><i class="fa-solid fa-terminal"></i> Audit Diagnostics &mdash; Terminal Log</span>
-            <button class="btn-text-action" onclick="clearTerminal()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+            <span><iconify-icon icon="fa6-solid:terminal"></iconify-icon> Audit Diagnostics &mdash; Terminal Log</span>
+            <button class="btn-text-action" onclick="clearTerminal()"><iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Clear</button>
           </div>
           <div id="terminal-body" class="terminal-body">
             <p class="terminal-line text-muted">&gt; Audit suite ready. Click "Run All 9 Tests" or launch individual tests above.</p>
@@ -603,8 +932,8 @@
 
         <div class="test-log-terminal network-log-console">
           <div class="terminal-header">
-            <span><i class="fa-solid fa-wifi"></i> Database REST API &mdash; Live Network Stream</span>
-            <button class="btn-text-action" onclick="clearNetworkConsole()"><i class="fa-solid fa-trash-can"></i> Clear</button>
+            <span><iconify-icon icon="fa6-solid:wifi"></iconify-icon> Database REST API &mdash; Live Network Stream</span>
+            <button class="btn-text-action" onclick="clearNetworkConsole()"><iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Clear</button>
           </div>
           <div id="network-console-body" class="terminal-body">
             <p class="terminal-line text-muted">&gt; Network console active. Supabase Realtime channel awaiting database changes.</p>
@@ -613,115 +942,143 @@
       </div>
     </section>
 
-    <!-- SECTION 5: STUDENT TICKET LOOKUP -->
+    <!-- SECTION 5: STUDENT DASHBOARD & MY EVENTS / MY TICKETS (PHASE 4 & 4.1) -->
     <section id="section-mytickets" class="view-section">
-      <div class="section-header">
-        <div>
-          <h2><i class="fa-solid fa-ticket-simple"></i> My Confirmed Tickets</h2>
-          <p class="text-muted">Retrieve and print your registered event receipts using your Roll Number.</p>
+      <!-- Student Dashboard Banner -->
+      <div class="student-dashboard-banner">
+        <div class="dashboard-greeting-box">
+          <h2 id="student-dashboard-greeting" class="student-greeting-title">Hello, Rahul 👋</h2>
+          <p class="text-muted">Welcome to your student event dashboard. View your registrations and ticket passes below.</p>
         </div>
       </div>
 
-      <div class="admin-card mb-4">
-        <div class="form-group" style="max-width: 500px; margin: 0 auto 1.5rem auto;">
-          <label for="lookup-roll-number"><i class="fa-solid fa-magnifying-glass"></i> Enter Roll Number to Search</label>
-          <div style="display:flex; gap:0.5rem;">
-            <input type="text" id="lookup-roll-number" class="form-control" placeholder="e.g. 23IT001 or 23ROLL001" autocomplete="off">
-            <button id="lookup-ticket-btn" class="btn btn-primary">
-              <i class="fa-solid fa-magnifying-glass"></i> Search
-            </button>
+      <!-- Student Key Metric Cards -->
+      <div class="student-stats-grid">
+        <div class="student-stat-card">
+          <div class="stat-icon-wrapper icon-registered">
+            <iconify-icon icon="fa6-solid:ticket"></iconify-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-label">Registered Events</span>
+            <strong id="stat-registered-count" class="stat-number">3</strong>
           </div>
         </div>
 
-        <div id="lookup-results-container" class="events-grid">
-          <!-- Dynamically populated by app.js -->
+        <div class="student-stat-card">
+          <div class="stat-icon-wrapper icon-upcoming">
+            <iconify-icon icon="fa6-solid:calendar-check"></iconify-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-label">Upcoming</span>
+            <strong id="stat-upcoming-count" class="stat-number">2</strong>
+          </div>
         </div>
-        <div id="lookup-empty-state" class="empty-state">
-          <i class="fa-solid fa-ticket empty-icon"></i>
-          <p>Enter your Roll Number above to view your confirmed tickets.</p>
+
+        <div class="student-stat-card">
+          <div class="stat-icon-wrapper icon-completed">
+            <iconify-icon icon="fa6-solid:circle-check"></iconify-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-label">Completed</span>
+            <strong id="stat-completed-count" class="stat-number">1</strong>
+          </div>
         </div>
+      </div>
+
+      <!-- MY EVENTS Section Header -->
+      <div class="my-events-header">
+        <div class="my-events-title-box">
+          <h3 class="my-events-heading">MY EVENTS</h3>
+        </div>
+        <div class="my-events-search-box">
+          <div class="search-input-wrapper">
+            <iconify-icon icon="fa6-solid:magnifying-glass" class="search-icon"></iconify-icon>
+            <input type="text" id="lookup-roll-number" class="form-control form-control-sm" placeholder="Search roll no (e.g. IT101)..." autocomplete="off">
+            <button id="lookup-ticket-btn" class="btn btn-primary btn-sm">
+              <iconify-icon icon="fa6-solid:magnifying-glass"></iconify-icon> Search
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY EVENTS Cards Grid -->
+      <div id="lookup-results-container" class="my-events-cards-grid">
+        <!-- Dynamically rendered cards by tickets.js -->
+      </div>
+      <div id="lookup-empty-state" class="empty-state hidden">
+        <iconify-icon icon="fa6-solid:ticket-simple" class="empty-icon"></iconify-icon>
+        <p id="empty-state-text">No registered events found.</p>
       </div>
     </section>
 
   </main>
 
-  <!-- CONFIRMATION RECEIPT MODAL (PHASE 5) -->
+  <!-- CONFIRMATION RECEIPT / TICKET MODAL (PHASE 4.1) -->
   <div id="confirmation-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-card">
+    <div class="modal-card ticket-pass-modal">
       <button class="modal-close-btn" id="modal-close-icon" aria-label="Close modal">&times;</button>
       
-      <div class="modal-header success">
-        <div class="success-checkmark-wrapper">
-          <i class="fa-solid fa-circle-check success-icon"></i>
+      <div class="ticket-pass-card">
+        <!-- Brand Header -->
+        <div class="ticket-header-brand">
+          <span class="brand-title">EVENTHUB</span>
+          <span class="ticket-type-tag">CONFIRMED TICKET</span>
         </div>
-        <h3 id="modal-title">REGISTRATION SUCCESSFUL</h3>
-        <p class="modal-subtitle">Your seat has been reserved and confirmed in the system.</p>
-      </div>
 
-      <div class="modal-body">
-        <div class="receipt-box">
-          <div class="receipt-header-row">
-            <span class="receipt-label"><i class="fa-solid fa-ticket"></i> Registration Ticket</span>
-            <span class="receipt-badge" id="receipt-id">REG-1001</span>
+        <div class="ticket-divider"></div>
+
+        <!-- Event Name -->
+        <div class="ticket-main-title">
+          <h2 id="receipt-event" class="ticket-event-name">WEB WARFARE</h2>
+        </div>
+
+        <!-- Student & Registration Details -->
+        <div class="ticket-details-grid">
+          <div class="ticket-field">
+            <span class="field-label">Student Name</span>
+            <strong id="receipt-name" class="field-value">Rahul Sharma</strong>
           </div>
-
-          <div class="divider"></div>
-          
-          <div class="receipt-row">
-            <span class="receipt-label"><i class="fa-solid fa-user"></i> Student Name:</span>
-            <strong class="receipt-value" id="receipt-name">Prathmesh V</strong>
+          <div class="ticket-field">
+            <span class="field-label">Roll Number</span>
+            <strong id="receipt-roll" class="field-value text-mono">IT101</strong>
           </div>
-
-          <div class="receipt-row">
-            <span class="receipt-label"><i class="fa-solid fa-hashtag"></i> Roll Number:</span>
-            <strong class="receipt-value" id="receipt-roll">23ITxxx</strong>
+          <div class="ticket-field">
+            <span class="field-label">Seat</span>
+            <strong id="receipt-seat" class="field-value highlight-seat">Seat: 42</strong>
           </div>
-
-          <div class="divider"></div>
-
-          <div class="receipt-row">
-            <span class="receipt-label"><i class="fa-solid fa-calendar"></i> Event:</span>
-            <strong class="receipt-value text-primary" id="receipt-event">Code Clash</strong>
+          <div class="ticket-field">
+            <span class="field-label">Date</span>
+            <strong id="receipt-date" class="field-value">10 Sept 2026</strong>
           </div>
+        </div>
 
-          <div class="receipt-row">
-            <span class="receipt-label"><i class="fa-solid fa-clock"></i> Date &amp; Time:</span>
-            <span class="receipt-value" id="receipt-date">10 Sept 2026</span>
+        <div class="ticket-divider"></div>
+
+        <!-- Ticket Code -->
+        <div class="ticket-code-row">
+          <span class="field-label">Ticket Code:</span>
+          <code id="receipt-id" class="ticket-code-badge">EVT-2026-8F42KD</code>
+        </div>
+
+        <!-- Visual QR Code -->
+        <div class="ticket-qr-container">
+          <div class="qr-code-box">
+            <img id="receipt-qr-image" src="" alt="QR Code" class="ticket-qr-img" />
           </div>
-
-          <div class="divider"></div>
-
-          <div class="receipt-qr-wrapper" style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); padding: 0.75rem; border-radius: var(--radius-md); margin-bottom: 0.85rem;">
-            <div style="font-size: 0.75rem; color: var(--text-muted);">
-              <i class="fa-solid fa-qrcode" style="font-size: 1.8rem; color: var(--accent-primary); margin-bottom: 0.2rem; display: block;"></i>
-              Scan for Entry Verification
-            </div>
-            <div class="barcode-graphic" style="display:flex; gap:2px; height: 32px; align-items: center;">
-              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:3px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:4px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:1px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:3px; height:100%; background:var(--text-secondary);"></span>
-              <span style="width:2px; height:100%; background:var(--text-secondary);"></span>
-            </div>
-          </div>
-
-          <div class="receipt-status-banner">
-            <span>Seat Status:</span>
-            <strong id="receipt-seats-left" class="highlight-seats">22 seats remaining</strong>
+          <div class="qr-info">
+            <span class="qr-badge"><iconify-icon icon="fa6-solid:qrcode"></iconify-icon> SCAN FOR ENTRY</span>
+            <small class="qr-hint">Show this QR code at event desk for check-in</small>
+            <span id="receipt-seats-left" class="badge badge-secondary" style="margin-top:0.4rem; font-size:0.7rem;">22 seats remaining</span>
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
         <button id="modal-print-btn" class="btn btn-outline-secondary">
-          <i class="fa-solid fa-print"></i> Print Receipt
+          <iconify-icon icon="fa6-solid:print"></iconify-icon> Print Ticket
         </button>
         <button id="modal-done-btn" class="btn btn-primary">
-          <i class="fa-solid fa-check"></i> Done
+          <iconify-icon icon="fa6-solid:check"></iconify-icon> Done
         </button>
       </div>
     </div>
@@ -734,7 +1091,7 @@
       
       <div class="modal-header">
         <h3 id="add-event-title" style="color: var(--text-primary); margin-bottom: 0.25rem;">
-          <i class="fa-solid fa-calendar-plus" style="color: var(--accent-primary);"></i> Create New Event
+          <iconify-icon icon="fa6-solid:calendar-plus" style="color: var(--accent-primary);"></iconify-icon> Create New Event
         </h3>
         <p class="modal-subtitle" id="add-event-subtitle">Add a new event and configure initial seat allocation.</p>
       </div>
@@ -743,30 +1100,64 @@
         <input type="hidden" id="edit-event-id" value="">
         <div class="modal-body">
           <div id="add-event-alert" class="alert alert-danger hidden">
-            <i class="fa-solid fa-circle-exclamation"></i>
+            <iconify-icon icon="fa6-solid:circle-exclamation"></iconify-icon>
             <span id="add-event-alert-msg"></span>
           </div>
 
           <div class="form-group">
             <label for="new-event-name">Event Name <span class="required">*</span></label>
-            <input type="text" id="new-event-name" class="form-control" placeholder="e.g. AI Hackathon" required>
+            <input type="text" id="new-event-name" class="form-control" placeholder="e.g. AI Hackathon 2026" required>
           </div>
 
           <div class="form-group">
-            <label for="new-event-date">Event Date <span class="required">*</span></label>
-            <input type="date" id="new-event-date" class="form-control" required>
+            <label for="new-event-description">Event Description</label>
+            <textarea id="new-event-description" class="form-control" rows="2" placeholder="Brief summary of the event..."></textarea>
           </div>
 
-          <div class="form-group">
-            <label for="new-event-seats">Total Seats Capacity <span class="required">*</span></label>
-            <input type="number" id="new-event-seats" class="form-control" min="1" max="5000" placeholder="e.g. 50" required>
+          <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label for="new-event-date">Event Date <span class="required">*</span></label>
+              <input type="date" id="new-event-date" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label for="new-event-venue">Venue</label>
+              <input type="text" id="new-event-venue" class="form-control" placeholder="e.g. Main Auditorium">
+            </div>
+          </div>
+
+          <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label for="new-event-start-time">Start Time</label>
+              <input type="text" id="new-event-start-time" class="form-control" placeholder="09:00 AM">
+            </div>
+            <div class="form-group">
+              <label for="new-event-end-time">End Time</label>
+              <input type="text" id="new-event-end-time" class="form-control" placeholder="05:00 PM">
+            </div>
+          </div>
+
+          <div class="form-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label for="new-event-seats">Total Seats Capacity <span class="required">*</span></label>
+              <input type="number" id="new-event-seats" class="form-control" min="1" max="5000" placeholder="e.g. 50" required>
+            </div>
+            <div class="form-group">
+              <label for="new-event-status">Lifecycle Status <span class="required">*</span></label>
+              <select id="new-event-status" class="form-control select-control" required>
+                <option value="draft">DRAFT (Hidden / Preview)</option>
+                <option value="open" selected>OPEN (Active Registration)</option>
+                <option value="closed">CLOSED (Full / Locked)</option>
+                <option value="completed">COMPLETED (Event Finished)</option>
+                <option value="cancelled">CANCELLED (Event Aborted)</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" id="add-event-cancel-btn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="save-new-event-btn">
-            <i class="fa-solid fa-plus"></i> Save Event
+            <iconify-icon icon="fa6-solid:plus"></iconify-icon> Save Event
           </button>
         </div>
       </form>
@@ -780,7 +1171,7 @@
       
       <div class="modal-header">
         <h3 id="db-config-title" style="color: var(--text-primary); margin-bottom: 0.25rem;">
-          <i class="fa-solid fa-database" style="color: var(--accent-primary);"></i> Real Database &amp; Supabase Persistence Engine
+          <iconify-icon icon="fa6-solid:database" style="color: var(--accent-primary);"></iconify-icon> Real Database &amp; Supabase Persistence Engine
         </h3>
         <p class="modal-subtitle">Configure real multi-user database connection or copy SQL schema scripts.</p>
       </div>
@@ -788,9 +1179,9 @@
       <div class="modal-body">
         <!-- DB Mode Selector Tabs -->
         <div class="db-mode-tabs" style="display:flex; gap:0.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
-          <button id="db-tab-status" class="tab-btn active btn-sm" type="button"><i class="fa-solid fa-signal"></i> Connection Status</button>
-          <button id="db-tab-supabase" class="tab-btn btn-sm" type="button"><i class="fa-solid fa-plug"></i> Connect Supabase</button>
-          <button id="db-tab-sql" class="tab-btn btn-sm" type="button"><i class="fa-solid fa-code"></i> Copy PostgreSQL DDL</button>
+          <button id="db-tab-status" class="tab-btn active btn-sm" type="button"><iconify-icon icon="fa6-solid:signal"></iconify-icon> Connection Status</button>
+          <button id="db-tab-supabase" class="tab-btn btn-sm" type="button"><iconify-icon icon="fa6-solid:plug"></iconify-icon> Connect Supabase</button>
+          <button id="db-tab-sql" class="tab-btn btn-sm" type="button"><iconify-icon icon="fa6-solid:code"></iconify-icon> Copy PostgreSQL DDL</button>
         </div>
 
         <!-- Panel 1: Connection Status -->
@@ -798,7 +1189,7 @@
           <div class="receipt-box" style="margin-bottom: 1rem;">
             <div class="receipt-row">
               <span class="receipt-label">Active Engine:</span>
-              <strong id="db-active-engine-text" style="color:var(--color-success);"><i class="fa-solid fa-circle-check"></i> REST Database &amp; Persistence Active</strong>
+              <strong id="db-active-engine-text" style="color:var(--color-success);"><iconify-icon icon="fa6-solid:circle-check"></iconify-icon> REST Database &amp; Persistence Active</strong>
             </div>
             <div class="receipt-row">
               <span class="receipt-label">Backend Provider:</span>
@@ -814,7 +1205,7 @@
             </div>
           </div>
           <div class="alert alert-info">
-            <i class="fa-solid fa-circle-info"></i>
+            <iconify-icon icon="fa6-solid:circle-info"></iconify-icon>
             <span>Changes made by student registrations or admin actions are stored in Supabase and synchronized through Realtime across connected users.</span>
           </div>
         </div>
@@ -825,21 +1216,21 @@
 
           <form id="supabase-config-form">
             <div class="form-group">
-              <label for="supabase-url-input"><i class="fa-solid fa-link"></i> Supabase Project URL</label>
+              <label for="supabase-url-input"><iconify-icon icon="fa6-solid:link"></iconify-icon> Supabase Project URL</label>
               <input type="url" id="supabase-url-input" class="form-control" placeholder="https://your-project.supabase.co" autocomplete="off">
             </div>
 
             <div class="form-group">
-              <label for="supabase-key-input"><i class="fa-solid fa-key"></i> Supabase Anon Key</label>
+              <label for="supabase-key-input"><iconify-icon icon="fa6-solid:key"></iconify-icon> Supabase Anon Key</label>
               <input type="password" id="supabase-key-input" class="form-control" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." autocomplete="off">
             </div>
 
             <div style="display:flex; gap:0.5rem; margin-top: 1rem;">
               <button type="button" id="save-supabase-btn" class="btn btn-primary btn-block">
-                <i class="fa-solid fa-floppy-disk"></i> Connect &amp; Save Credentials
+                <iconify-icon icon="fa6-solid:floppy-disk"></iconify-icon> Connect &amp; Save Credentials
               </button>
               <button type="button" id="disconnect-supabase-btn" class="btn btn-outline-danger">
-                <i class="fa-solid fa-power-off"></i> Reset to Default Engine
+                <iconify-icon icon="fa6-solid:power-off"></iconify-icon> Reset to Default Engine
               </button>
             </div>
           </form>
@@ -968,7 +1359,7 @@ GRANT EXECUTE ON FUNCTION public.register_for_event(TEXT, INT, TEXT, TEXT, TEXT)
 NOTIFY pgrst, 'reload schema';
             </pre>
             <button id="copy-sql-btn" class="btn btn-sm btn-primary" style="position:absolute; top: 8px; right: 8px;" type="button">
-              <i class="fa-solid fa-copy"></i> Copy SQL
+              <iconify-icon icon="fa6-solid:copy"></iconify-icon> Copy SQL
             </button>
           </div>
         </div>
@@ -982,7 +1373,7 @@ NOTIFY pgrst, 'reload schema';
 
   <footer class="app-footer">
     <div class="footer-container">
-      <p>PS4 Event Registration System &copy; 2026 | Developed by <strong>Team VIP</strong></p>
+      <p>EventHub Registration System &copy; 2026 | Developed by <strong>Team VIP</strong></p>
       <div class="footer-links">
         <span class="status-indicator online"></span> Source of Truth: Active
       </div>
@@ -991,6 +1382,7 @@ NOTIFY pgrst, 'reload schema';
 
   </div><!-- END #app-shell -->
 
-  <script src="app.js"></script>
+  <!-- ES module entry point — replaces the monolithic app.js -->
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

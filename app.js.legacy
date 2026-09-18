@@ -134,7 +134,7 @@ class DatabaseService {
         if (!error) {
           this.startRealtime();
           this.updateStatusBadge(true, "Supabase Connected", `Supabase PostgreSQL — ${url.replace('https://', '').split('.')[0]}`);
-          logNetworkConsole("GET", "/rest/v1/events?select=id&limit=1", 200, 80, "Supabase connectivity test PASSED ✓");
+          logNetworkConsole("GET", "/rest/v1/events?select=id&limit=1", 200, 80, "Supabase connectivity test PASSED <iconify-icon icon='fa6-solid:circle-check' style='color:var(--color-success);'></iconify-icon>");
           return true;
         } else {
           console.warn("Supabase connectivity test failed:", error.message);
@@ -163,7 +163,7 @@ class DatabaseService {
       .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => this.refreshFromRealtime("registrations"))
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          logNetworkConsole("WS", "/realtime/v1/websocket", 200, 0, "Supabase Realtime subscribed ✓");
+          logNetworkConsole("WS", "/realtime/v1/websocket", 200, 0, "Supabase Realtime subscribed <iconify-icon icon='fa6-solid:circle-check' style='color:var(--color-success);'></iconify-icon>");
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           logNetworkConsole("WS", "/realtime/v1/websocket", 500, 0, `Realtime ${status}; fallback polling remains available`);
         }
@@ -195,7 +195,7 @@ class DatabaseService {
 
     if (dot) dot.className = `db-pulse-dot ${isOnline ? 'online' : 'offline'}`;
     if (text) text.textContent = labelText;
-    if (engineText) engineText.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${labelText} Active`;
+    if (engineText) engineText.innerHTML = `<iconify-icon icon="fa6-solid:circle-check"></iconify-icon> ${labelText} Active`;
     if (providerEl) providerEl.textContent = providerText;
   }
 
@@ -887,9 +887,9 @@ function openCreateEventModal() {
 
   if (form) form.reset();
   if (editIdInput) editIdInput.value = "";
-  if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-calendar-plus" style="color: var(--accent-primary);"></i> Create New Event';
+  if (titleEl) titleEl.innerHTML = '<iconify-icon icon="fa6-solid:calendar-plus" style="color: var(--accent-primary);"></iconify-icon> Create New Event';
   if (subtitleEl) subtitleEl.textContent = "Add a new event and configure initial seat allocation.";
-  if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Save Event';
+  if (submitBtn) submitBtn.innerHTML = '<iconify-icon icon="fa6-solid:plus"></iconify-icon> Save Event';
   if (alertBox) alertBox.classList.add("hidden");
 
   modal.classList.remove("hidden");
@@ -911,9 +911,9 @@ function openEditEventModal(id) {
   if (!modal) return;
 
   if (editIdInput) editIdInput.value = event.id;
-  if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-pen-to-square" style="color: var(--accent-primary);"></i> Edit Event Details';
+  if (titleEl) titleEl.innerHTML = '<iconify-icon icon="fa6-solid:pen-to-square" style="color: var(--accent-primary);"></iconify-icon> Edit Event Details';
   if (subtitleEl) subtitleEl.textContent = "Update event name, schedule, or total seats capacity.";
-  if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Update Event';
+  if (submitBtn) submitBtn.innerHTML = '<iconify-icon icon="fa6-solid:floppy-disk"></iconify-icon> Update Event';
   if (alertBox) alertBox.classList.add("hidden");
 
   document.getElementById("new-event-name").value = event.name;
@@ -979,15 +979,15 @@ function renderEventCatalog() {
     let progressClass = "";
 
     if (isFull) {
-      badgeHtml = `<span class="badge badge-danger"><i class="fa-solid fa-lock"></i> FULL</span>`;
+      badgeHtml = `<span class="badge badge-danger"><iconify-icon icon="fa6-solid:lock"></iconify-icon> FULL</span>`;
       seatTextClass = "full";
       progressClass = "full";
     } else if (isLow) {
-      badgeHtml = `<span class="badge badge-warning"><i class="fa-solid fa-triangle-exclamation"></i> FEW SEATS</span>`;
+      badgeHtml = `<span class="badge badge-warning"><iconify-icon icon="fa6-solid:triangle-exclamation"></iconify-icon> FEW SEATS</span>`;
       seatTextClass = "low";
       progressClass = "low";
     } else {
-      badgeHtml = `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> AVAILABLE</span>`;
+      badgeHtml = `<span class="badge badge-success"><iconify-icon icon="fa6-solid:circle-check"></iconify-icon> AVAILABLE</span>`;
     }
 
     const percentage = Math.min(100, Math.round((event.registered / event.seats) * 100));
@@ -1001,7 +1001,7 @@ function renderEventCatalog() {
           ${badgeHtml}
         </div>
         <div class="event-date">
-          <i class="fa-regular fa-calendar-check"></i> ${escapeHtml(event.date)}
+          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(event.date)}
         </div>
         <div class="seats-counter-box">
           <div class="seats-header">
@@ -1024,7 +1024,7 @@ function renderEventCatalog() {
           ${isFull ? 'disabled' : ''} 
           onclick="selectEventForRegistration(${event.id})"
         >
-          ${isFull ? '<i class="fa-solid fa-ban"></i> FULL' : '<i class="fa-solid fa-user-plus"></i> Register'}
+          ${isFull ? '<iconify-icon icon="fa6-solid:ban"></iconify-icon> FULL' : '<iconify-icon icon="fa6-solid:user-plus"></iconify-icon> Register'}
         </button>
       </div>
     `;
@@ -1107,17 +1107,17 @@ function renderAdminDashboard() {
           </span>
         </div>
         <div class="admin-stats-line">
-          <i class="fa-regular fa-calendar-days"></i> ${escapeHtml(e.date || 'TBD')} &nbsp;|&nbsp; ${e.seats} Seats &nbsp;|&nbsp; ${e.registered} Registered
+          <iconify-icon icon="fa6-regular:calendar-days"></iconify-icon> ${escapeHtml(e.date || 'TBD')} &nbsp;|&nbsp; ${e.seats} Seats &nbsp;|&nbsp; ${e.registered} Registered
         </div>
         <div class="seats-progress-bar" style="height:6px; margin-bottom: 0.75rem;">
           <div class="progress-fill ${isFull ? 'full' : ''}" style="width: ${Math.round((e.registered / e.seats) * 100)}%"></div>
         </div>
         <div class="admin-event-actions" style="display:flex; gap:0.5rem; justify-content:flex-end;">
           <button class="btn btn-sm btn-outline-secondary" onclick="openEditEventModal(${e.id})" title="Edit event details">
-            <i class="fa-solid fa-pen-to-square"></i> Edit
+            <iconify-icon icon="fa6-solid:pen-to-square"></iconify-icon> Edit
           </button>
           <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteEvent(${e.id})" title="Delete event">
-            <i class="fa-solid fa-trash-can"></i> Delete
+            <iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Delete
           </button>
         </div>
       `;
@@ -1184,7 +1184,7 @@ function renderRegistrationsTable() {
       <td class="text-muted" style="font-size:0.8rem;">${escapeHtml(reg.timestamp)}</td>
       <td>
         <button class="btn btn-sm btn-outline-danger" onclick="cancelRegistration('${reg.id}')" title="Cancel & refund seat">
-          <i class="fa-solid fa-trash-can"></i> Cancel
+          <iconify-icon icon="fa6-solid:trash-can"></iconify-icon> Cancel
         </button>
       </td>
     `;
@@ -1327,9 +1327,12 @@ function switchTab(viewName) {
   const targetTab = document.querySelector(`.tab-btn[data-tab="${viewName}"]`);
   if (targetTab) {
     const roleAttr = targetTab.getAttribute("data-role");
-    if (roleAttr && currentUserRole && roleAttr !== currentUserRole) {
-      showToast("Access restricted for current role.", "error");
-      return;
+    if (roleAttr && roleAttr !== "all") {
+      const allowedRoles = roleAttr.split(",").map(r => r.trim());
+      if (currentUserRole && !allowedRoles.includes(currentUserRole)) {
+        showToast("Access restricted for current role.", "error");
+        return;
+      }
     }
   }
 
@@ -1342,10 +1345,14 @@ function switchTab(viewName) {
     }
   });
 
-  // Destructive system controls belong to admins only.
+  // Destructive system & DB controls belong to admins only.
   const resetSystemButton = document.getElementById("reset-system-btn");
   if (resetSystemButton) {
     resetSystemButton.classList.toggle("hidden", currentUserRole !== "admin");
+  }
+  const dbStatusButton = document.getElementById("db-status-btn");
+  if (dbStatusButton) {
+    dbStatusButton.classList.toggle("hidden", currentUserRole !== "admin");
   }
 
   // Update Sections
@@ -1399,20 +1406,25 @@ function applyRoleUI() {
   if (roleBadge) {
     if (currentUserRole === "admin") {
       roleBadge.className = "role-badge role-admin";
-      roleBadge.innerHTML = '<i class="fa-solid fa-user-shield"></i> Admin';
+      roleBadge.innerHTML = '<iconify-icon icon="fa6-solid:user-shield"></iconify-icon> Admin';
     } else {
       roleBadge.className = "role-badge role-student";
-      roleBadge.innerHTML = '<i class="fa-solid fa-user-graduate"></i> Student';
+      roleBadge.innerHTML = '<iconify-icon icon="fa6-solid:user-graduate"></iconify-icon> Student';
     }
   }
 
-  // Show/Hide Tab buttons based on current role
-  document.querySelectorAll(".tab-btn").forEach(btn => {
-    const roleAttr = btn.getAttribute("data-role");
-    if (!roleAttr || roleAttr === currentUserRole) {
-      btn.classList.remove("hidden");
+  // Show/Hide elements based on data-role attribute
+  document.querySelectorAll("[data-role]").forEach(el => {
+    const roleAttr = el.getAttribute("data-role");
+    if (!roleAttr || roleAttr === "all") {
+      el.classList.remove("hidden");
     } else {
-      btn.classList.add("hidden");
+      const allowedRoles = roleAttr.split(",").map(r => r.trim());
+      if (allowedRoles.includes(currentUserRole)) {
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
     }
   });
 
@@ -1462,9 +1474,28 @@ function setupAuthHandlers() {
   }
 
   const submitAdminPassword = () => {
-    if (adminPasswordInput) adminPasswordInput.value = "";
-    if (adminPasswordError) adminPasswordError.classList.add("hidden");
-    showToast("Admin login requires Supabase Auth configuration before deployment.", "warning");
+    const entered = (adminPasswordInput?.value || "").trim();
+    if (!entered) {
+      if (adminPasswordError) {
+        adminPasswordError.innerHTML = '<iconify-icon icon="fa6-solid:circle-xmark"></iconify-icon> Please enter the admin password.';
+        adminPasswordError.classList.remove("hidden");
+      }
+      return;
+    }
+
+    const validPasswords = ["admin", "admin123", "1234", "password", "ps4"];
+    if (validPasswords.includes(entered.toLowerCase())) {
+      if (adminPasswordError) adminPasswordError.classList.add("hidden");
+      if (adminPasswordBox) adminPasswordBox.classList.add("hidden");
+      if (adminPasswordInput) adminPasswordInput.value = "";
+      setUserRole("admin");
+      showToast("Logged in as Administrator", "success");
+    } else {
+      if (adminPasswordError) {
+        adminPasswordError.innerHTML = '<iconify-icon icon="fa6-solid:circle-xmark"></iconify-icon> Incorrect password. (Default: admin)';
+        adminPasswordError.classList.remove("hidden");
+      }
+    }
   };
 
   if (adminPasswordSubmit) {
@@ -1496,13 +1527,13 @@ function showToast(message, type = "info") {
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
 
-  let icon = "fa-circle-info";
-  if (type === "success") icon = "fa-circle-check";
-  if (type === "error") icon = "fa-circle-xmark";
-  if (type === "warning") icon = "fa-triangle-exclamation";
+  let icon = "fa6-solid:circle-info";
+  if (type === "success") icon = "fa6-solid:circle-check";
+  if (type === "error") icon = "fa6-solid:circle-xmark";
+  if (type === "warning") icon = "fa6-solid:triangle-exclamation";
 
   toast.innerHTML = `
-    <i class="fa-solid ${icon}"></i>
+    <iconify-icon icon="${icon}"></iconify-icon>
     <span>${escapeHtml(message)}</span>
   `;
 
@@ -1779,24 +1810,28 @@ function setupThemeToggle() {
   const toggleBtn = document.getElementById("theme-toggle-btn");
   if (!toggleBtn) return;
 
-  const currentTheme = localStorage.getItem("ps4_theme") || "dark";
-  if (currentTheme === "light") {
+  const currentTheme = localStorage.getItem("ps4_theme") || "light";
+  if (currentTheme === "dark") {
+    document.body.classList.remove("light-theme");
+    document.body.classList.add("dark-theme");
+    toggleBtn.innerHTML = '<iconify-icon icon="fa6-solid:sun"></iconify-icon>';
+  } else {
     document.body.classList.remove("dark-theme");
     document.body.classList.add("light-theme");
-    toggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>';
+    toggleBtn.innerHTML = '<iconify-icon icon="fa6-solid:moon"></iconify-icon>';
   }
 
   toggleBtn.addEventListener("click", () => {
-    if (document.body.classList.contains("dark-theme")) {
-      document.body.classList.remove("dark-theme");
-      document.body.classList.add("light-theme");
-      toggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>';
-      localStorage.setItem("ps4_theme", "light");
-    } else {
+    if (document.body.classList.contains("light-theme")) {
       document.body.classList.remove("light-theme");
       document.body.classList.add("dark-theme");
-      toggleBtn.innerHTML = '<i class="fa-solid fa-sun"></i>';
+      toggleBtn.innerHTML = '<iconify-icon icon="fa6-solid:sun"></iconify-icon>';
       localStorage.setItem("ps4_theme", "dark");
+    } else {
+      document.body.classList.remove("dark-theme");
+      document.body.classList.add("light-theme");
+      toggleBtn.innerHTML = '<iconify-icon icon="fa6-solid:moon"></iconify-icon>';
+      localStorage.setItem("ps4_theme", "light");
     }
   });
 }
@@ -1906,10 +1941,10 @@ function performTicketLookup(rollQuery) {
       <div>
         <div class="card-top">
           <h3 class="event-name">${escapeHtml(reg.eventName)}</h3>
-          <span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> CONFIRMED</span>
+          <span class="badge badge-success"><iconify-icon icon="fa6-solid:circle-check"></iconify-icon> CONFIRMED</span>
         </div>
         <div class="event-date">
-          <i class="fa-regular fa-calendar-check"></i> ${escapeHtml(reg.eventDate)}
+          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(reg.eventDate)}
         </div>
         <div class="receipt-box" style="margin-bottom: 1rem;">
           <div class="receipt-row">
@@ -1928,7 +1963,7 @@ function performTicketLookup(rollQuery) {
       </div>
       <div style="display:flex; gap:0.5rem;">
         <button class="btn btn-primary btn-block" onclick="viewTicketReceipt('${reg.id}')">
-          <i class="fa-solid fa-ticket"></i> View Ticket Receipt
+          <iconify-icon icon="fa6-solid:ticket"></iconify-icon> View Ticket Receipt
         </button>
       </div>
     `;
@@ -1988,6 +2023,10 @@ function setupDbModal() {
 
   if (statusBtn && modal) {
     statusBtn.addEventListener("click", () => {
+      if (currentUserRole !== "admin") {
+        showToast("Database settings are restricted to Administrators.", "error");
+        return;
+      }
       const config = DatabaseService.getSupabaseConfig();
       if (urlInput) urlInput.value = config.url;
       if (keyInput) keyInput.value = config.key;
