@@ -519,48 +519,53 @@
         </button>
       </div>
 
-      <!-- SUB-TAB 1: OVERVIEW -->
+      <!-- SUB-TAB 1: OVERVIEW & ANALYTICS -->
       <div id="subtab-overview" class="admin-subview active">
-        <div class="metrics-grid">
+        <div class="metrics-grid mb-4">
+          <div class="metric-card">
+            <div class="metric-icon info">
+              <iconify-icon icon="fa6-solid:user-graduate"></iconify-icon>
+            </div>
+            <div class="metric-details">
+              <span class="metric-title">Total Students</span>
+              <span class="metric-value" id="admin-metric-students">0</span>
+            </div>
+          </div>
+
           <div class="metric-card">
             <div class="metric-icon primary">
               <iconify-icon icon="fa6-solid:calendar"></iconify-icon>
             </div>
             <div class="metric-details">
               <span class="metric-title">Total Events</span>
-              <span class="metric-value" id="admin-metric-events">3</span>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-icon info">
-              <iconify-icon icon="fa6-solid:users"></iconify-icon>
-            </div>
-            <div class="metric-details">
-              <span class="metric-title">Total Capacity</span>
-              <span class="metric-value" id="admin-metric-capacity">95</span>
+              <span class="metric-value" id="admin-metric-events">0</span>
             </div>
           </div>
 
           <div class="metric-card">
             <div class="metric-icon success">
-              <iconify-icon icon="fa6-solid:user-check"></iconify-icon>
+              <iconify-icon icon="fa6-solid:ticket"></iconify-icon>
             </div>
             <div class="metric-details">
-              <span class="metric-title">Total Registered</span>
+              <span class="metric-title">Registrations</span>
               <span class="metric-value" id="admin-metric-registered">0</span>
             </div>
           </div>
 
           <div class="metric-card">
             <div class="metric-icon warning">
-              <iconify-icon icon="fa6-solid:couch"></iconify-icon>
+              <iconify-icon icon="fa6-solid:calendar-check"></iconify-icon>
             </div>
             <div class="metric-details">
-              <span class="metric-title">Total Available</span>
-              <span class="metric-value" id="admin-metric-available">95</span>
+              <span class="metric-title">Upcoming Events</span>
+              <span class="metric-value" id="admin-metric-upcoming">0</span>
             </div>
           </div>
+        </div>
+
+        <!-- Phase 8 Visual Analytics Charts Grid -->
+        <div id="admin-analytics-charts-grid" class="analytics-charts-wrapper">
+          <!-- Rendered dynamically by analytics.js -->
         </div>
       </div>
 
@@ -952,15 +957,15 @@
         </div>
       </div>
 
-      <!-- Student Key Metric Cards -->
-      <div class="student-stats-grid">
+      <!-- Student Key Metric Cards & Phase 8.1 Activity Breakdown -->
+      <div class="student-stats-grid mb-4">
         <div class="student-stat-card">
           <div class="stat-icon-wrapper icon-registered">
             <iconify-icon icon="fa6-solid:ticket"></iconify-icon>
           </div>
           <div class="stat-info">
-            <span class="stat-label">Registered Events</span>
-            <strong id="stat-registered-count" class="stat-number">3</strong>
+            <span class="stat-label">Events Registered</span>
+            <strong id="stat-registered-count" class="stat-number">0</strong>
           </div>
         </div>
 
@@ -969,8 +974,8 @@
             <iconify-icon icon="fa6-solid:calendar-check"></iconify-icon>
           </div>
           <div class="stat-info">
-            <span class="stat-label">Upcoming</span>
-            <strong id="stat-upcoming-count" class="stat-number">2</strong>
+            <span class="stat-label">Upcoming Events</span>
+            <strong id="stat-upcoming-count" class="stat-number">0</strong>
           </div>
         </div>
 
@@ -979,10 +984,25 @@
             <iconify-icon icon="fa6-solid:circle-check"></iconify-icon>
           </div>
           <div class="stat-info">
-            <span class="stat-label">Completed</span>
-            <strong id="stat-completed-count" class="stat-number">1</strong>
+            <span class="stat-label">Completed Events</span>
+            <strong id="stat-completed-count" class="stat-number">0</strong>
           </div>
         </div>
+
+        <div class="student-stat-card">
+          <div class="stat-icon-wrapper icon-cancelled" style="background:rgba(239,68,68,0.15); color:var(--color-danger);">
+            <iconify-icon icon="fa6-solid:ban"></iconify-icon>
+          </div>
+          <div class="stat-info">
+            <span class="stat-label">Cancelled</span>
+            <strong id="stat-cancelled-count" class="stat-number" style="color:var(--color-danger);">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase 8.1 Student Activity Summary Card -->
+      <div id="student-activity-card" class="student-activity-wrapper mb-4">
+        <!-- Rendered dynamically by analytics.js -->
       </div>
 
       <!-- MY EVENTS Section Header -->

@@ -20,6 +20,7 @@ import { cancelRegistration } from "../services/registrationService.js";
 import { showToast, logToTerminal } from "./notifications.js";
 import { saveLocalState } from "../realtime/localPersistence.js";
 import { showConfirmationModal } from "./registration.js";
+import { renderAdminAnalyticsCharts } from "./analytics.js";
 
 // ─── Admin Sub-navigation ───────────────────────────────────────────────────
 
@@ -59,18 +60,22 @@ function _setupSearchListeners() {
 export function renderAdminDashboard() {
   const { events, registrations } = getState();
 
-  // 1. Top metrics
-  let totalCapacity = 0, totalRegistered = 0, totalAvailable = 0;
+  // 1. Top metrics (Phase 8: Total Students, Total Events, Registrations, Upcoming Events)
+  const studentRolls = new Set(registrations.map((r) => (r.rollNumber || "").toLowerCase()).filter(Boolean));
+  const totalStudents = studentRolls.size;
+
+  let upcomingCount = 0;
   events.forEach((e) => {
-    totalCapacity   += e.seats;
-    totalRegistered += e.registered;
-    totalAvailable  += getAvailableSeats(e);
+    if ((e.status || "open").toLowerCase() === "open") upcomingCount++;
   });
 
+  _setText("admin-metric-students",   totalStudents);
   _setText("admin-metric-events",     events.length);
-  _setText("admin-metric-capacity",   totalCapacity);
-  _setText("admin-metric-registered", totalRegistered);
-  _setText("admin-metric-available",  totalAvailable);
+  _setText("admin-metric-registered", registrations.length);
+  _setText("admin-metric-upcoming",   upcomingCount);
+
+  // Render Phase 8 Analytics Visualizations
+  renderAdminAnalyticsCharts(events, registrations);
 
   // 2. Render Event Lifecycle Cards Grid
   _renderEventsGrid(events);

@@ -10,6 +10,7 @@ import { getState } from "../state/appState.js";
 import { escapeHtml } from "../utils/security.js";
 import { showToast } from "./notifications.js";
 import { showConfirmationModal } from "./registration.js";
+import { renderStudentAnalytics } from "./analytics.js";
 
 /**
  * Wire up the ticket lookup search button and Enter-key handler.
@@ -61,37 +62,45 @@ export function autoLookupForCurrentUser() {
     studentRegs = registrations.filter((r) => (r.rollNumber || "").toLowerCase() === q);
   }
 
-  // 3. Calculate Dashboard Metrics
+  // 3. Calculate Dashboard Metrics (Phase 8.1: Registered, Upcoming, Completed, Cancelled)
   const totalCount = studentRegs.length;
-  // Calculate completed vs upcoming (default fallback if empty sample data)
   let completedCount = 0;
-  let upcomingCount  = totalCount;
+  let upcomingCount  = 0;
+  let cancelledCount = 0;
 
   studentRegs.forEach((r) => {
-    if (r.status === "completed") {
+    const status = (r.status || "confirmed").toLowerCase();
+    if (status === "cancelled") {
+      cancelledCount++;
+    } else if (status === "completed") {
       completedCount++;
-    } else if (r.eventDate) {
-      // Check if date is in past (e.g. earlier than 2026-09-11)
-      const d = new Date(r.eventDate);
-      if (!isNaN(d.getTime()) && d < new Date("2026-09-11")) {
-        completedCount++;
+    } else {
+      if (r.eventDate) {
+        const d = new Date(r.eventDate);
+        if (!isNaN(d.getTime()) && d < new Date("2026-09-11")) {
+          completedCount++;
+        } else {
+          upcomingCount++;
+        }
+      } else {
+        upcomingCount++;
       }
     }
   });
 
-  if (totalCount > 0 && completedCount > totalCount) {
-    completedCount = 1;
-  }
-  upcomingCount = Math.max(0, totalCount - completedCount);
-
-  // If user has registrations, update metric display
-  const regCountEl = document.getElementById("stat-registered-count");
-  const upCountEl  = document.getElementById("stat-upcoming-count");
+  // Update metric counters
+  const regCountEl  = document.getElementById("stat-registered-count");
+  const upCountEl   = document.getElementById("stat-upcoming-count");
   const compCountEl = document.getElementById("stat-completed-count");
+  const cancCountEl = document.getElementById("stat-cancelled-count");
 
   if (regCountEl)  regCountEl.textContent  = totalCount;
   if (upCountEl)   upCountEl.textContent   = upcomingCount;
   if (compCountEl) compCountEl.textContent = completedCount;
+  if (cancCountEl) cancCountEl.textContent = cancelledCount;
+
+  // Render Phase 8.1 Student Activity Summary
+  renderStudentAnalytics(studentRegs);
 
   // 4. Render My Events Cards
   renderMyEvents(studentRegs, rollNumber);
