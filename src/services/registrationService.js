@@ -8,6 +8,7 @@
 
 import { getSupabaseClient } from "../config/supabase.js";
 import { logNetworkConsole } from "../ui/notifications.js";
+import { checkRateLimit, isDebounced } from "../utils/rateLimiter.js";
 
 const STORAGE_KEY_REGISTRATIONS = "ps4_registrations_v1";
 
@@ -127,6 +128,23 @@ export async function fetchStudentRegistrations(userId) {
  */
 export async function registerForEvent(regData) {
   const t0 = Date.now();
+
+  // Phase 7.4 Multi-click Debounce Guard (prevent rapid double clicks)
+  const debounceKey = `reg_${regData.eventId}_${regData.userId || regData.rollNumber}`;
+  if (isDebounced(debounceKey, 2000)) {
+    return { success: false, error: "Submission in progress. Please wait..." };
+  }
+
+  // Phase 7.4 Token Bucket Rate Limiter (max 5 requests per minute per student session)
+  const rateLimitKey = `rate_reg_${regData.userId || regData.rollNumber || 'anon'}`;
+  const limitCheck = checkRateLimit(rateLimitKey, 5, 60000);
+  if (!limitCheck.allowed) {
+    return {
+      success: false,
+      error: `Too many registration attempts. Please wait ${limitCheck.retryAfterSec} seconds.`,
+    };
+  }
+
   const supabase = getSupabaseClient();
   const ticketCode = regData.ticketCode || "EVT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 

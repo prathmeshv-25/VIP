@@ -146,44 +146,75 @@ DROP POLICY IF EXISTS "registrations_read"          ON public.registrations;
 DROP POLICY IF EXISTS "registrations_admin_delete"  ON public.registrations;
 
 -- ── EVENTS policies ────────────────────────────────────────────
+-- Anonymous and students can read OPEN events; Admin can read all states (DRAFT, CLOSED, etc.)
 CREATE POLICY "events_read_public" ON public.events
-  FOR SELECT TO anon, authenticated USING (true);
+  FOR SELECT TO anon, authenticated
+  USING (
+    status = 'open' OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
 
+-- Only Admin can create, edit, or delete events
 CREATE POLICY "events_write_admin" ON public.events
   FOR ALL TO authenticated
   USING     ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
   WITH CHECK((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
 
 -- ── PROFILES policies ──────────────────────────────────────────
-CREATE POLICY "profiles_own_read" ON public.profiles
-  FOR SELECT TO authenticated USING (auth.uid() = id);
-
-CREATE POLICY "profiles_self_insert" ON public.profiles
-  FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "profiles_own_update" ON public.profiles
-  FOR UPDATE TO authenticated USING (auth.uid() = id);
-
-CREATE POLICY "profiles_admin_read_all" ON public.profiles
+-- Student can view own profile; Admin can view all profiles
+CREATE POLICY "profiles_read" ON public.profiles
   FOR SELECT TO authenticated
-  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+  USING (
+    auth.uid() = id OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
+
+-- Authenticated user can create their own profile row on signup
+CREATE POLICY "profiles_self_insert" ON public.profiles
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+-- Student can update own profile; Admin can update any profile
+CREATE POLICY "profiles_own_update" ON public.profiles
+  FOR UPDATE TO authenticated
+  USING (
+    auth.uid() = id OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
 
 -- ── REGISTRATIONS policies ─────────────────────────────────────
+-- Student can insert registration bound to their own user_id; Admin can insert for anyone
 CREATE POLICY "registrations_student_insert" ON public.registrations
-  FOR INSERT TO anon, authenticated
-  WITH CHECK (true);
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid() = user_id OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
 
+-- Student can read their own registrations; Admin can read all registrations
 CREATE POLICY "registrations_read" ON public.registrations
-  FOR SELECT TO anon, authenticated
+  FOR SELECT TO authenticated
   USING (
     user_id IS NULL OR
     auth.uid() = user_id OR
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
+-- Student can update/cancel own registration; Admin can manage all
+CREATE POLICY "registrations_update" ON public.registrations
+  FOR UPDATE TO authenticated
+  USING (
+    auth.uid() = user_id OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
+
+-- Student can delete own registration; Admin can manage all
 CREATE POLICY "registrations_admin_delete" ON public.registrations
   FOR DELETE TO authenticated
-  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+  USING (
+    auth.uid() = user_id OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+  );
 
 -- ─────────────────────────────────────────────────────────────
 -- 8. REALTIME PUBLICATION

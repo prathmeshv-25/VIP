@@ -12,6 +12,8 @@
 
 import { getSupabaseClient } from "../config/supabase.js";
 import { setState } from "../state/appState.js";
+import { validateAuthForm } from "../utils/validation.js";
+import { checkRateLimit } from "../utils/rateLimiter.js";
 
 /** Helper to sync state matching Phase 2.2 schema */
 function _setSessionState(authUser, profileRecord) {
@@ -72,14 +74,19 @@ function _setSessionState(authUser, profileRecord) {
  * @returns {{ success: boolean, error?: string, user?: object }}
  */
 export async function signUpStudent({ fullName, email, rollNumber, password }) {
+  const valResult = validateAuthForm(email, password, true, fullName, rollNumber);
+  if (!valResult.valid) {
+    return { success: false, error: valResult.error };
+  }
+
   const supabase = getSupabaseClient();
   if (!supabase) {
     return { success: false, error: "Database not connected." };
   }
 
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanRoll = rollNumber.trim().toUpperCase();
-  const cleanName = fullName.trim();
+  const cleanEmail = valResult.cleanEmail;
+  const cleanRoll  = valResult.cleanRoll;
+  const cleanName  = valResult.cleanName;
 
   // 1. Register user with Supabase Auth
   const { data, error } = await supabase.auth.signUp({
@@ -133,13 +140,26 @@ export async function signUpStudent({ fullName, email, rollNumber, password }) {
  * @returns {{ success: boolean, error?: string, user?: object }}
  */
 export async function signInStudent(email, password) {
+  const valResult = validateAuthForm(email, password, false);
+  if (!valResult.valid) {
+    return { success: false, error: valResult.error };
+  }
+
+  const limitCheck = checkRateLimit(`login_${valResult.cleanEmail}`, 5, 60000);
+  if (!limitCheck.allowed) {
+    return {
+      success: false,
+      error: `Too many login attempts. Please wait ${limitCheck.retryAfterSec} seconds.`,
+    };
+  }
+
   const supabase = getSupabaseClient();
   if (!supabase) {
     return { success: false, error: "Database not connected." };
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
+    email: valResult.cleanEmail,
     password,
   });
 

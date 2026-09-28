@@ -1,11 +1,120 @@
 /**
- * Form Validation Utilities
+ * Form Validation Utilities (Phase 7 Hardened Input Validation)
  * Pure functions — no DOM access, no side effects.
  * Each function returns { valid: boolean, error?: string }.
  */
 
-/** Only letters and spaces are allowed in student names. */
-const NAME_REGEX = /^[A-Za-z\s]+$/;
+/** Only letters, spaces, hyphens, and apostrophes are allowed in student names. */
+const NAME_REGEX = /^[A-Za-z\s'\-]+$/;
+
+/** Standard RFC email format pattern */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Roll number pattern: alphanumeric, min 3 chars */
+const ROLL_REGEX = /^[A-Za-z0-9\/-]{3,20}$/;
+
+/**
+ * Validate Student Full Name.
+ * @param {string} name
+ * @returns {{ valid: boolean, error?: string, cleanName?: string }}
+ */
+export function validateName(name) {
+  const clean = (name || "").trim();
+  if (!clean) {
+    return { valid: false, error: "Please enter your name" };
+  }
+  if (clean.length < 2) {
+    return { valid: false, error: "Name must be at least 2 characters long" };
+  }
+  if (clean.length > 60) {
+    return { valid: false, error: "Name cannot exceed 60 characters" };
+  }
+  if (!NAME_REGEX.test(clean)) {
+    return { valid: false, error: "Invalid Name: Only letters, spaces, hyphens allowed" };
+  }
+  return { valid: true, cleanName: clean };
+}
+
+/**
+ * Validate Email address format.
+ * @param {string} email
+ * @returns {{ valid: boolean, error?: string, cleanEmail?: string }}
+ */
+export function validateEmail(email) {
+  const clean = (email || "").trim().toLowerCase();
+  if (!clean) {
+    return { valid: false, error: "Please enter an email address" };
+  }
+  if (!EMAIL_REGEX.test(clean)) {
+    return { valid: false, error: "Please enter a valid email address (e.g. student@college.edu)" };
+  }
+  return { valid: true, cleanEmail: clean };
+}
+
+/**
+ * Validate Student Roll Number.
+ * @param {string} roll
+ * @returns {{ valid: boolean, error?: string, cleanRoll?: string }}
+ */
+export function validateRollNumber(roll) {
+  const clean = (roll || "").trim().toUpperCase();
+  if (!clean) {
+    return { valid: false, error: "Please enter roll number" };
+  }
+  if (!ROLL_REGEX.test(clean)) {
+    return { valid: false, error: "Invalid Roll Number: Must be 3-20 alphanumeric characters (e.g. CS101)" };
+  }
+  return { valid: true, cleanRoll: clean };
+}
+
+/**
+ * Validate Account Password strength.
+ * @param {string} password
+ * @returns {{ valid: boolean, error?: string }}
+ */
+export function validatePassword(password) {
+  if (!password || typeof password !== "string") {
+    return { valid: false, error: "Please enter a password" };
+  }
+  if (password.length < 6) {
+    return { valid: false, error: "Password must be at least 6 characters long" };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate Auth Form Inputs (Login / Signup).
+ * @param {string} email
+ * @param {string} password
+ * @param {boolean} isSignup
+ * @param {string} fullName
+ * @param {string} rollNumber
+ * @returns {{ valid: boolean, error?: string, cleanEmail?: string, cleanName?: string, cleanRoll?: string }}
+ */
+export function validateAuthForm(email, password, isSignup = false, fullName = "", rollNumber = "") {
+  const emailRes = validateEmail(email);
+  if (!emailRes.valid) return emailRes;
+
+  const passRes = validatePassword(password);
+  if (!passRes.valid) return passRes;
+
+  if (isSignup) {
+    const nameRes = validateName(fullName);
+    if (!nameRes.valid) return nameRes;
+
+    const rollRes = validateRollNumber(rollNumber);
+    if (!rollRes.valid) return rollRes;
+
+    return {
+      valid: true,
+      cleanEmail: emailRes.cleanEmail,
+      cleanName: nameRes.cleanName,
+      cleanRoll: rollRes.cleanRoll,
+    };
+  }
+
+  return { valid: true, cleanEmail: emailRes.cleanEmail };
+}
 
 /**
  * Validate the student registration form fields.
@@ -13,9 +122,10 @@ const NAME_REGEX = /^[A-Za-z\s]+$/;
  * @param {string} studentName
  * @param {string} rollNumber
  * @param {number|string} eventId
- * @param {Array<{id:number,seats:number,registered:number,name:string}>} events
- * @param {Array<{eventId:number,rollNumber:string}>} registrations
- * @returns {{ valid: boolean, error?: string, event?: object }}
+ * @param {Array<{id:number,seats:number,registered:number,name:string,status?:string}>} events
+ * @param {Array<{eventId:number,rollNumber:string,userId?:string}>} registrations
+ * @param {string|null} userId
+ * @returns {{ valid: boolean, error?: string, event?: object, nameClean?: string, rollClean?: string }}
  */
 export function validateRegistrationForm(
   studentName,
@@ -25,25 +135,13 @@ export function validateRegistrationForm(
   registrations,
   userId = null
 ) {
-  const nameClean = (studentName || "").trim();
-  const rollClean = (rollNumber || "").trim();
+  const nameRes = validateName(studentName);
+  if (!nameRes.valid) return nameRes;
+
+  const rollRes = validateRollNumber(rollNumber);
+  if (!rollRes.valid) return rollRes;
+
   const parsedEventId = parseInt(eventId, 10);
-
-  if (!nameClean) {
-    return { valid: false, error: "Please enter your name" };
-  }
-
-  if (!NAME_REGEX.test(nameClean)) {
-    return {
-      valid: false,
-      error: "Invalid Name: Only letters and spaces are allowed",
-    };
-  }
-
-  if (!rollClean) {
-    return { valid: false, error: "Please enter roll number" };
-  }
-
   if (isNaN(parsedEventId) || !parsedEventId) {
     return { valid: false, error: "Please select an event" };
   }
@@ -71,7 +169,7 @@ export function validateRegistrationForm(
     (r) =>
       r.eventId === parsedEventId &&
       ((userId && r.userId && r.userId === userId) ||
-       (rollClean && r.rollNumber.toLowerCase() === rollClean.toLowerCase()))
+       (rollRes.cleanRoll && (r.rollNumber || "").toLowerCase() === rollRes.cleanRoll.toLowerCase()))
   );
   if (isDuplicate) {
     return {
@@ -80,7 +178,7 @@ export function validateRegistrationForm(
     };
   }
 
-  return { valid: true, event, nameClean, rollClean };
+  return { valid: true, event, nameClean: nameRes.cleanName, rollClean: rollRes.cleanRoll };
 }
 
 /**
@@ -91,7 +189,7 @@ export function validateRegistrationForm(
  * @param {number|string} seats
  * @param {Array<{id:number,name:string}>} existingEvents
  * @param {number|null} editingId   Pass the ID being edited so the duplicate check skips itself
- * @returns {{ valid: boolean, error?: string }}
+ * @returns {{ valid: boolean, error?: string, nameClean?: string, dateClean?: string, seatsNum?: number }}
  */
 export function validateEventForm(name, date, seats, existingEvents, editingId = null) {
   const nameClean = (name || "").trim();
@@ -100,6 +198,9 @@ export function validateEventForm(name, date, seats, existingEvents, editingId =
 
   if (!nameClean) {
     return { valid: false, error: "Please enter an event name." };
+  }
+  if (nameClean.length < 2 || nameClean.length > 100) {
+    return { valid: false, error: "Event name must be between 2 and 100 characters." };
   }
 
   if (!dateClean) {
@@ -111,6 +212,9 @@ export function validateEventForm(name, date, seats, existingEvents, editingId =
       valid: false,
       error: "Total seats capacity must be a number greater than 0.",
     };
+  }
+  if (seatsNum > 10000) {
+    return { valid: false, error: "Total seats capacity cannot exceed 10,000." };
   }
 
   const isDuplicate = existingEvents.some(
