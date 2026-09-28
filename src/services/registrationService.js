@@ -15,7 +15,7 @@ const STORAGE_KEY_REGISTRATIONS = "ps4_registrations_v1";
  * Map a raw Supabase `registrations` row to the internal shape.
  * @param {object} r
  */
-function mapRegistration(r) {
+export function mapRegistration(r) {
   return {
     id:            r.id,
     eventId:       Number(r.event_id   ?? r.eventId),

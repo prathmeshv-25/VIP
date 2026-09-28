@@ -72,6 +72,7 @@ export function renderEventCatalog() {
 
     const cardEl = document.createElement("div");
     cardEl.className = !canRegister ? "event-card card-full" : "event-card";
+    cardEl.setAttribute("data-event-id", event.id);
     cardEl.innerHTML = `
       <div>
         <div class="card-top">
@@ -117,6 +118,117 @@ export function renderEventCatalog() {
   });
 
   // Header quick-stats
+  _updateTotalAvailableSeatsPill();
+}
+
+/**
+ * Granular DOM update for a single event card on Realtime payload change.
+ * Avoids full catalog re-render.
+ * @param {object} event
+ */
+export function updateTargetedEventCardUI(event) {
+  const cardEl = document.querySelector(`.event-card[data-event-id="${event.id}"]`);
+  if (!cardEl) {
+    // If new event, re-render catalog
+    renderEventCatalog();
+    renderFormOptions();
+    return;
+  }
+
+  const available = getAvailableSeats(event);
+  const status = (event.status || "open").toLowerCase();
+  const isOpen = status === "open";
+  const isFull = available === 0;
+  const isLow  = available > 0 && available <= 5;
+
+  let badgeHtml = "";
+  let statusBtnText = "";
+  let canRegister = false;
+
+  if (!isOpen) {
+    if (status === "draft") {
+      badgeHtml = `<span class="badge badge-status badge-status-draft"><iconify-icon icon="fa6-solid:file-pen"></iconify-icon> DRAFT</span>`;
+      statusBtnText = "DRAFT (Preview Only)";
+    } else if (status === "closed") {
+      badgeHtml = `<span class="badge badge-status badge-status-closed"><iconify-icon icon="fa6-solid:lock"></iconify-icon> CLOSED</span>`;
+      statusBtnText = "REGISTRATION CLOSED";
+    } else if (status === "completed") {
+      badgeHtml = `<span class="badge badge-status badge-status-completed"><iconify-icon icon="fa6-solid:flag-checkered"></iconify-icon> COMPLETED</span>`;
+      statusBtnText = "EVENT FINISHED";
+    } else if (status === "cancelled") {
+      badgeHtml = `<span class="badge badge-status badge-status-cancelled"><iconify-icon icon="fa6-solid:ban"></iconify-icon> CANCELLED</span>`;
+      statusBtnText = "EVENT CANCELLED";
+    }
+  } else if (isFull) {
+    badgeHtml = `<span class="badge badge-danger"><iconify-icon icon="fa6-solid:lock"></iconify-icon> FULL</span>`;
+    statusBtnText = "EVENT FULL";
+  } else if (isLow) {
+    badgeHtml = `<span class="badge badge-warning"><iconify-icon icon="fa6-solid:triangle-exclamation"></iconify-icon> FEW SEATS</span>`;
+    statusBtnText = "Register Now";
+    canRegister = true;
+  } else {
+    badgeHtml = `<span class="badge badge-success"><iconify-icon icon="fa6-solid:circle-check"></iconify-icon> OPEN</span>`;
+    statusBtnText = "Register Now";
+    canRegister = true;
+  }
+
+  const percentage = Math.min(100, Math.round((event.registered / event.seats) * 100));
+
+  // Update card class
+  cardEl.className = !canRegister ? "event-card card-full" : "event-card";
+
+  // Update Badge
+  const cardTop = cardEl.querySelector(".card-top");
+  if (cardTop) {
+    const existingBadge = cardTop.querySelector(".badge");
+    if (existingBadge) {
+      existingBadge.outerHTML = badgeHtml;
+    }
+  }
+
+  // Update Seat Available Text
+  const seatTextEl = cardEl.querySelector(".seats-available-text");
+  if (seatTextEl) {
+    seatTextEl.className = `seats-available-text ${isFull ? "full" : isLow ? "low" : "available"}`;
+    seatTextEl.textContent = isFull ? "FULL" : `${available} seats left`;
+  }
+
+  // Update Progress Fill
+  const progressFillEl = cardEl.querySelector(".progress-fill");
+  if (progressFillEl) {
+    progressFillEl.className = `progress-fill ${isFull ? "full" : isLow ? "low" : ""}`;
+    progressFillEl.style.width = `${percentage}%`;
+  }
+
+  // Update Small Registered Text
+  const smallTextEl = cardEl.querySelector(".seats-counter-box small");
+  if (smallTextEl) {
+    smallTextEl.textContent = `${event.registered} / ${event.seats} Registered (${percentage}% filled)`;
+  }
+
+  // Update Register Button
+  const btnEl = cardEl.querySelector("button");
+  if (btnEl) {
+    btnEl.className = `btn ${canRegister ? "btn-primary" : "btn-outline-secondary"} btn-block`;
+    btnEl.disabled = !canRegister;
+    btnEl.innerHTML = canRegister
+      ? '<iconify-icon icon="fa6-solid:user-plus"></iconify-icon> Register Now'
+      : `<iconify-icon icon="fa6-solid:ban"></iconify-icon> ${statusBtnText}`;
+  }
+
+  _updateTotalAvailableSeatsPill();
+  renderFormOptions();
+}
+
+function _updateTotalAvailableSeatsPill() {
+  const { events } = getState();
+  let totalAvailableSeats = 0;
+  events.forEach((ev) => {
+    if ((ev.status || "open").toLowerCase() === "open") {
+      totalAvailableSeats += getAvailableSeats(ev);
+    }
+  });
+
   const statTotal     = document.getElementById("stat-total-events");
   const statAvailable = document.getElementById("stat-total-available");
   if (statTotal)     statTotal.textContent     = events.length;

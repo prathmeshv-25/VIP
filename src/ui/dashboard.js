@@ -109,6 +109,7 @@ function _renderEventsGrid(events) {
 
     const box = document.createElement("div");
     box.className = "admin-event-box";
+    box.setAttribute("data-event-id", e.id);
     box.innerHTML = `
       <div class="admin-event-title" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.5rem;">
         <div>
@@ -171,6 +172,81 @@ function _getStatusIcon(status) {
     case "cancelled": return "fa6-solid:ban";
     default:          return "fa6-solid:circle-info";
   }
+}
+
+/**
+ * O(1) Targeted Realtime UI update for Admin Event Box & Top Metrics.
+ * Avoids re-rendering the entire admin dashboard.
+ * @param {object} event
+ */
+export function updateTargetedAdminEventUI(event) {
+  const { events } = getState();
+
+  // 1. Recalculate top metrics in O(1) over events list
+  let totalCapacity = 0, totalRegistered = 0, totalAvailable = 0;
+  events.forEach((e) => {
+    totalCapacity   += e.seats;
+    totalRegistered += e.registered;
+    totalAvailable  += getAvailableSeats(e);
+  });
+
+  _setText("admin-metric-events",     events.length);
+  _setText("admin-metric-capacity",   totalCapacity);
+  _setText("admin-metric-registered", totalRegistered);
+  _setText("admin-metric-available",  totalAvailable);
+
+  // 2. Find targeted admin box
+  const box = document.querySelector(`.admin-event-box[data-event-id="${event.id}"]`);
+  if (!box) {
+    _renderEventsGrid(events);
+    return;
+  }
+
+  const avail  = getAvailableSeats(event);
+  const isFull = avail === 0;
+  const pct    = Math.round((event.registered / event.seats) * 100);
+  const status = (event.status || "open").toLowerCase();
+
+  // Update Status Badge
+  const badgeEl = box.querySelector(".badge-status");
+  if (badgeEl) {
+    badgeEl.className = `badge badge-status badge-status-${status}`;
+    badgeEl.innerHTML = `<iconify-icon icon="${_getStatusIcon(status)}"></iconify-icon> ${status.toUpperCase()}`;
+  }
+
+  // Update Progress Fill
+  const fillEl = box.querySelector(".progress-fill");
+  if (fillEl) {
+    fillEl.className = `progress-fill ${isFull ? "full" : ""}`;
+    fillEl.style.width = `${pct}%`;
+  }
+
+  // Update Seats Info Line
+  const seatsLine = box.querySelector("div[style*='justify-content:space-between; align-items:center']");
+  if (seatsLine) {
+    seatsLine.innerHTML = `
+      <span>${event.registered} / ${event.seats} Capacity (${pct}%)</span>
+      <strong style="color:${isFull ? "var(--color-danger)" : "var(--color-success)"}">
+        ${isFull ? "FULL" : `${avail} Seats Left`}
+      </strong>
+    `;
+  }
+
+  // Update Select Dropdown value
+  const selectEl = box.querySelector("select");
+  if (selectEl) {
+    selectEl.value = status;
+  }
+}
+
+/**
+ * Targeted update for new registration payload in Admin tables.
+ * @param {object} reg
+ */
+export function appendTargetedRegistrationRow(reg) {
+  renderRegistrationsTable();
+  renderStudentsTable();
+  renderTicketsTable();
 }
 
 // ─── Lifecycle Transition Handler ─────────────────────────────────────────────

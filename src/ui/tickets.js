@@ -186,3 +186,23 @@ export function viewTicketReceipt(regId) {
   if (reg) showConfirmationModal(reg);
 }
 
+/**
+ * Realtime targeted update for student ticket view.
+ * If the registration belongs to the current logged in student or matches their roll number,
+ * updates the student dashboard metrics and appends/updates the ticket card O(1).
+ * @param {object} reg
+ */
+export function appendTargetedStudentTicket(reg) {
+  const { currentUser, profile } = getState();
+  const currentUserId = currentUser?.id;
+  const currentRoll   = (profile?.roll_number || currentUser?.rollNumber || "").toLowerCase();
+
+  const isForCurrentUser =
+    (currentUserId && reg.userId === currentUserId) ||
+    (currentRoll && (reg.rollNumber || "").toLowerCase() === currentRoll);
+
+  if (isForCurrentUser) {
+    autoLookupForCurrentUser();
+  }
+}
+

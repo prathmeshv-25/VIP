@@ -59,7 +59,7 @@ const INITIAL_EVENTS = [
  * Map a raw Supabase `events` row to the internal event shape.
  * @param {object} row
  */
-function mapEvent(row) {
+export function mapEvent(row) {
   return {
     id:          Number(row.id),
     name:        row.name,
