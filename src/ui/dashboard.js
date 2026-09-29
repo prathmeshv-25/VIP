@@ -297,7 +297,13 @@ export function appendTargetedRegistrationRow(reg) {
  * @param {string} newStatus
  */
 export async function handleStatusTransition(eventId, newStatus) {
-  const { events } = getState();
+  const { currentUser, events } = getState();
+  if (currentUser?.role !== "admin") {
+    showToast("Permission denied. You do not have administrator rights for this action.", "error");
+    renderAdminDashboard();
+    return;
+  }
+
   const event = events.find((e) => e.id === eventId);
   if (!event) return;
 
@@ -533,6 +539,12 @@ export async function handleCancelRegistration(regId) {
  * Open create event modal (blank form).
  */
 export function openCreateEventModal() {
+  const { currentUser } = getState();
+  if (currentUser?.role !== "admin") {
+    showToast("Permission denied. You do not have administrator rights for this action.", "error");
+    return;
+  }
+
   _configureEventModal({
     title:       '<iconify-icon icon="fa6-solid:calendar-plus" style="color:var(--accent-primary);"></iconify-icon> Create New Event',
     subtitle:    "Add a new event and configure initial seat allocation.",
@@ -554,7 +566,12 @@ export function openCreateEventModal() {
  * @param {number} id
  */
 export function openEditEventModal(id) {
-  const { events } = getState();
+  const { currentUser, events } = getState();
+  if (currentUser?.role !== "admin") {
+    showToast("Permission denied. You do not have administrator rights for this action.", "error");
+    return;
+  }
+
   const event = events.find((e) => e.id === parseInt(id, 10));
   if (!event) return;
 
@@ -764,7 +781,12 @@ async function _doEditEvent(targetId, data) {
  * @param {number} id
  */
 export async function confirmAndDeleteEvent(id) {
-  const { events, registrations } = getState();
+  const { currentUser, events, registrations } = getState();
+  if (currentUser?.role !== "admin") {
+    showToast("Permission denied. You do not have administrator rights for this action.", "error");
+    return;
+  }
+
   const targetId  = parseInt(id, 10);
   const event     = events.find((e) => e.id === targetId);
   if (!event) return;
