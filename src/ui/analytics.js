@@ -1,17 +1,15 @@
 /**
- * Analytics UI Engine (Phase 8 & Phase 8.1)
+ * Analytics UI Engine (Phase 8 & Phase 9.1 / 9.5)
  *
- * Renders high-definition SVG & CSS visual charts for:
+ * Renders high-definition visual charts for:
  * 1. Admin Analytics (Registrations by Event, Daily Trend, Capacity Utilization, Cancellation Rate & System Health)
  * 2. Student Activity Analytics (Registered, Upcoming, Completed, Cancelled breakdown)
  */
 
 import { escapeHtml } from "../utils/security.js";
-import { getAvailableSeats } from "../utils/formatting.js";
 
 /**
  * Render Admin Analytics Dashboard Visualizations in #admin-analytics-charts-grid.
- *
  * @param {Array} events
  * @param {Array} registrations
  */
@@ -19,7 +17,6 @@ export function renderAdminAnalyticsCharts(events = [], registrations = []) {
   const container = document.getElementById("admin-analytics-charts-grid");
   if (!container) return;
 
-  // 1. Calculate Core Metrics
   const totalEvents = events.length;
   const totalRegistrations = registrations.length;
 
@@ -28,13 +25,10 @@ export function renderAdminAnalyticsCharts(events = [], registrations = []) {
 
   let totalCapacity = 0;
   let totalRegisteredSeats = 0;
-  let upcomingEventsCount = 0;
 
   events.forEach((e) => {
     totalCapacity += Number(e.seats || 0);
     totalRegisteredSeats += Number(e.registered || 0);
-    const status = (e.status || "open").toLowerCase();
-    if (status === "open") upcomingEventsCount++;
   });
 
   const overallOccupancyPct = totalCapacity > 0 ? Math.round((totalRegisteredSeats / totalCapacity) * 100) : 0;
@@ -191,15 +185,13 @@ export function renderAdminAnalyticsCharts(events = [], registrations = []) {
 
 /**
  * Render Student "My Activity" Analytics section in #student-activity-card.
- *
  * @param {Array} studentRegs
  */
 export function renderStudentAnalytics(studentRegs = []) {
   const container = document.getElementById("student-activity-card");
   if (!container) return;
 
-  const totalRegistered = studentRegs.length;
-
+  const now = new Date();
   let upcomingCount  = 0;
   let completedCount = 0;
   let cancelledCount = 0;
@@ -211,9 +203,9 @@ export function renderStudentAnalytics(studentRegs = []) {
     } else if (status === "completed") {
       completedCount++;
     } else {
-      if (r.eventDate) {
-        const d = new Date(r.eventDate);
-        if (!isNaN(d.getTime()) && d < new Date("2026-09-11")) {
+      if (r.eventDateSnapshot || r.eventDate) {
+        const d = new Date(r.eventDateSnapshot || r.eventDate);
+        if (!isNaN(d.getTime()) && d < now) {
           completedCount++;
         } else {
           upcomingCount++;

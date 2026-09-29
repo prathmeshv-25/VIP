@@ -1,8 +1,8 @@
 /**
- * main.js — Application Entry Point
+ * main.js — Application Entry Point (Phase 9 — Production Hardening)
  *
  * Bootstraps EventHub:
- *  1. Initialise Supabase client
+ *  1. Initialise Supabase client & connectivity status
  *  2. Restore auth session (if any)
  *  3. Load events + registrations from DB (or localStorage fallback)
  *  4. Wire all UI modules
@@ -10,11 +10,11 @@
  *  6. Subscribe to state changes → re-render views
  */
 
-import { initSupabaseClient, getSupabaseClient } from "./config/supabase.js";
+import { initSupabaseClient } from "./config/supabase.js";
 import { getState, setState, subscribe } from "./state/appState.js";
 import { restoreSession } from "./services/authService.js";
-import { fetchEvents } from "./services/eventService.js";
-import { fetchRegistrations, syncStateIntegrity } from "./services/registrationService.js";
+import { fetchEvents, resetEvents } from "./services/eventService.js";
+import { fetchRegistrations, syncStateIntegrity, resetRegistrations } from "./services/registrationService.js";
 import { saveLocalState } from "./realtime/localPersistence.js";
 import { startRealtime, startPolling } from "./realtime/realtimeManager.js";
 import { updateStatusBadge, logNetworkConsole, showToast } from "./ui/notifications.js";
@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // 3. Restore admin session (if the browser has a persisted Supabase auth cookie)
-  const restoredUser = await restoreSession();
+  await restoreSession();
 
   // 4. Load initial data
   const [rawEvents, rawRegs] = await Promise.all([fetchEvents(), fetchRegistrations()]);
@@ -98,8 +98,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     registrations: syncedRegs,
     supabaseOnline: !!client,
     lastHash:      hash,
-    // If we had a persisted admin session, currentUser was already set by restoreSession()
-    // If not, we leave currentUser null (entry screen will show)
   });
 
   saveLocalState(rawEvents, syncedRegs);
@@ -112,7 +110,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupTicketLookup();
   setupAuditPanel();
   setupDbModal(async () => {
-    // Called after credential change — reinitialise client + reload data
     const newClient = await initSupabaseClient();
     const [ev, regs] = await Promise.all([fetchEvents(), fetchRegistrations()]);
     const synced = syncStateIntegrity(ev, regs);
@@ -143,9 +140,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     if (!confirm("Are you sure you want to reset all registration data to default?")) return;
-
-    const { resetEvents }        = await import("./services/eventService.js");
-    const { resetRegistrations } = await import("./services/registrationService.js");
 
     await resetRegistrations();
     const freshEvents = await resetEvents();

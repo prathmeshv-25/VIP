@@ -1,26 +1,28 @@
 /**
- * Admin Dashboard UI (Phase 5 & Phase 5.1)
+ * Admin Dashboard UI (Phase 9 — Production Hardening)
  *
  * Renders Admin Sub-dashboards (Overview, Events, Registrations, Students, Tickets, Audit Logs),
- * Event CRUD with Lifecycle State Transitions (DRAFT, OPEN, CLOSED, COMPLETED, CANCELLED),
+ * Event CRUD with State Machine Controlled Transitions (DRAFT → OPEN → CLOSED → COMPLETED / CANCELLED),
+ * Loading / Empty / Error / Offline / Permission States across all admin screens,
  * Students Directory, and Issued Tickets Registry.
  */
 
 import { getState, setState } from "../state/appState.js";
 import { validateEventForm } from "../utils/validation.js";
-import { formatDateForDisplay, getRawDate, getAvailableSeats } from "../utils/formatting.js";
+import { formatDateForDisplay, getRawDate, getAvailableSeats, formatTimeForDisplay } from "../utils/formatting.js";
 import { escapeHtml } from "../utils/security.js";
 import {
   createEvent,
   updateEvent,
   updateEventStatus,
   deleteEvent,
+  ALLOWED_TRANSITIONS,
 } from "../services/eventService.js";
 import { cancelRegistration } from "../services/registrationService.js";
 import { showToast, logToTerminal } from "./notifications.js";
 import { saveLocalState } from "../realtime/localPersistence.js";
-import { showConfirmationModal } from "./registration.js";
 import { renderAdminAnalyticsCharts } from "./analytics.js";
+import { getFriendlyErrorMessage } from "../utils/errorHandler.js";
 
 // ─── Admin Sub-navigation ───────────────────────────────────────────────────
 
@@ -58,9 +60,15 @@ function _setupSearchListeners() {
  * Render admin dashboard metrics, event CRUD breakdown, students directory, and ticket logs.
  */
 export function renderAdminDashboard() {
-  const { events, registrations } = getState();
+  const { events, registrations, currentUser } = getState();
 
-  // 1. Top metrics (Phase 8: Total Students, Total Events, Registrations, Upcoming Events)
+  // Phase 9.5 Permission Denied Guard
+  if (currentUser?.role !== "admin") {
+    _renderPermissionDeniedState();
+    return;
+  }
+
+  // 1. Top metrics
   const studentRolls = new Set(registrations.map((r) => (r.rollNumber || "").toLowerCase()).filter(Boolean));
   const totalStudents = studentRolls.size;
 
@@ -100,17 +108,42 @@ export function renderAdminDashboard() {
   renderTicketsTable();
 }
 
+function _renderPermissionDeniedState() {
+  const grid = document.getElementById("admin-events-list");
+  if (grid) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1; padding: 2rem;">
+        <iconify-icon icon="fa6-solid:user-shield" class="empty-icon" style="color:var(--color-danger);"></iconify-icon>
+        <h4 style="margin-top:0.5rem; color:var(--text-primary);">Permission Denied</h4>
+        <p class="text-muted">Administrator credentials are required to access this dashboard.</p>
+      </div>
+    `;
+  }
+}
+
 /** @private */
 function _renderEventsGrid(events) {
   const grid = document.getElementById("admin-events-list");
   if (!grid) return;
 
   grid.innerHTML = "";
+
+  if (!events || events.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1; padding: 2.5rem;">
+        <iconify-icon icon="fa6-regular:folder-open" class="empty-icon"></iconify-icon>
+        <p style="margin-top:0.5rem;">No events found in database registry. Click "Create New Event" above to create one.</p>
+      </div>
+    `;
+    return;
+  }
+
   events.forEach((e) => {
     const avail  = getAvailableSeats(e);
     const isFull = avail === 0;
     const pct    = Math.round((e.registered / e.seats) * 100);
     const status = (e.status || "open").toLowerCase();
+    const timeText = e.startTime ? `${escapeHtml(e.startTime)} - ${escapeHtml(e.endTime || '')}` : "09:00 AM - 05:00 PM";
 
     const box = document.createElement("div");
     box.className = "admin-event-box";
@@ -127,7 +160,7 @@ function _renderEventsGrid(events) {
       </div>
 
       <div class="admin-stats-line" style="font-size:0.83rem; color:var(--text-secondary); margin-bottom:0.6rem;">
-        <iconify-icon icon="fa6-regular:calendar-days"></iconify-icon> ${escapeHtml(e.date || "TBD")} &bull; ${escapeHtml(e.startTime || '09:00 AM')} &bull; ${escapeHtml(e.venue || 'Main Auditorium')}
+        <iconify-icon icon="fa6-regular:calendar-days"></iconify-icon> ${escapeHtml(e.date || "TBD")} &bull; ${timeText} &bull; ${escapeHtml(e.venue || 'Main Auditorium')}
       </div>
 
       <div class="seats-progress-bar" style="height:6px; margin-bottom:0.5rem;">
@@ -142,14 +175,14 @@ function _renderEventsGrid(events) {
       </div>
 
       <div class="admin-event-actions" style="display:flex; gap:0.5rem; justify-content:space-between; flex-wrap:wrap; border-top:1px dashed var(--border-color); padding-top:0.6rem;">
-        <!-- Lifecycle Transition Dropdown -->
+        <!-- Phase 9.3 Controlled State Machine Dropdown -->
         <select class="form-control form-control-sm select-control" style="width:auto; font-size:0.75rem; padding:0.25rem 0.5rem;"
                 onchange="window._ehTransitionStatus(${e.id}, this.value)">
-          <option value="draft" ${status === "draft" ? "selected" : ""}>State: DRAFT</option>
-          <option value="open" ${status === "open" ? "selected" : ""}>State: OPEN</option>
-          <option value="closed" ${status === "closed" ? "selected" : ""}>State: CLOSED</option>
-          <option value="completed" ${status === "completed" ? "selected" : ""}>State: COMPLETED</option>
-          <option value="cancelled" ${status === "cancelled" ? "selected" : ""}>State: CANCELLED</option>
+          <option value="draft" ${status === "draft" ? "selected" : ""} ${_isTransitionAllowed(status, "draft") ? "" : "disabled"}>State: DRAFT</option>
+          <option value="open" ${status === "open" ? "selected" : ""} ${_isTransitionAllowed(status, "open") ? "" : "disabled"}>State: OPEN</option>
+          <option value="closed" ${status === "closed" ? "selected" : ""} ${_isTransitionAllowed(status, "closed") ? "" : "disabled"}>State: CLOSED</option>
+          <option value="completed" ${status === "completed" ? "selected" : ""} ${_isTransitionAllowed(status, "completed") ? "" : "disabled"}>State: COMPLETED</option>
+          <option value="cancelled" ${status === "cancelled" ? "selected" : ""} ${_isTransitionAllowed(status, "cancelled") ? "" : "disabled"}>State: CANCELLED</option>
         </select>
 
         <div style="display:flex; gap:0.4rem;">
@@ -168,6 +201,12 @@ function _renderEventsGrid(events) {
   });
 }
 
+function _isTransitionAllowed(currentStatus, targetStatus) {
+  if (currentStatus === targetStatus) return true;
+  const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
+  return allowed.includes(targetStatus);
+}
+
 function _getStatusIcon(status) {
   switch (status) {
     case "draft":     return "fa6-solid:file-pen";
@@ -181,13 +220,11 @@ function _getStatusIcon(status) {
 
 /**
  * O(1) Targeted Realtime UI update for Admin Event Box & Top Metrics.
- * Avoids re-rendering the entire admin dashboard.
  * @param {object} event
  */
 export function updateTargetedAdminEventUI(event) {
   const { events } = getState();
 
-  // 1. Recalculate top metrics in O(1) over events list
   let totalCapacity = 0, totalRegistered = 0, totalAvailable = 0;
   events.forEach((e) => {
     totalCapacity   += e.seats;
@@ -200,7 +237,6 @@ export function updateTargetedAdminEventUI(event) {
   _setText("admin-metric-registered", totalRegistered);
   _setText("admin-metric-available",  totalAvailable);
 
-  // 2. Find targeted admin box
   const box = document.querySelector(`.admin-event-box[data-event-id="${event.id}"]`);
   if (!box) {
     _renderEventsGrid(events);
@@ -212,21 +248,18 @@ export function updateTargetedAdminEventUI(event) {
   const pct    = Math.round((event.registered / event.seats) * 100);
   const status = (event.status || "open").toLowerCase();
 
-  // Update Status Badge
   const badgeEl = box.querySelector(".badge-status");
   if (badgeEl) {
     badgeEl.className = `badge badge-status badge-status-${status}`;
     badgeEl.innerHTML = `<iconify-icon icon="${_getStatusIcon(status)}"></iconify-icon> ${status.toUpperCase()}`;
   }
 
-  // Update Progress Fill
   const fillEl = box.querySelector(".progress-fill");
   if (fillEl) {
     fillEl.className = `progress-fill ${isFull ? "full" : ""}`;
     fillEl.style.width = `${pct}%`;
   }
 
-  // Update Seats Info Line
   const seatsLine = box.querySelector("div[style*='justify-content:space-between; align-items:center']");
   if (seatsLine) {
     seatsLine.innerHTML = `
@@ -237,10 +270,12 @@ export function updateTargetedAdminEventUI(event) {
     `;
   }
 
-  // Update Select Dropdown value
   const selectEl = box.querySelector("select");
   if (selectEl) {
     selectEl.value = status;
+    Array.from(selectEl.options).forEach((opt) => {
+      opt.disabled = !_isTransitionAllowed(status, opt.value);
+    });
   }
 }
 
@@ -257,7 +292,7 @@ export function appendTargetedRegistrationRow(reg) {
 // ─── Lifecycle Transition Handler ─────────────────────────────────────────────
 
 /**
- * Handle quick status transition dropdown change for an event.
+ * Handle controlled status transition dropdown change for an event (Phase 9.3).
  * @param {number} eventId
  * @param {string} newStatus
  */
@@ -266,18 +301,36 @@ export async function handleStatusTransition(eventId, newStatus) {
   const event = events.find((e) => e.id === eventId);
   if (!event) return;
 
-  const oldStatus = event.status || "open";
+  const oldStatus = (event.status || "open").toLowerCase();
   const statusClean = newStatus.toLowerCase();
 
   if (oldStatus === statusClean) return;
 
+  // Validate state machine rule before optimistic update
+  if (!_isTransitionAllowed(oldStatus, statusClean)) {
+    showToast(`Invalid transition: Cannot change status from ${oldStatus.toUpperCase()} to ${statusClean.toUpperCase()}.`, "error");
+    renderAdminDashboard();
+    return;
+  }
+
+  // Optimistic state mutation
   const updatedEvents = events.map((e) => (e.id === eventId ? { ...e, status: statusClean } : e));
   setState({ events: updatedEvents });
   saveLocalState(updatedEvents, getState().registrations);
 
-  await updateEventStatus(eventId, statusClean);
-  renderAdminDashboard();
+  const res = await updateEventStatus(eventId, statusClean, oldStatus);
 
+  if (res.error) {
+    // Revert state if backend transition rejected
+    const reverted = events.map((e) => (e.id === eventId ? { ...e, status: oldStatus } : e));
+    setState({ events: reverted });
+    saveLocalState(reverted, getState().registrations);
+    renderAdminDashboard();
+    showToast(getFriendlyErrorMessage(res.error), "error");
+    return;
+  }
+
+  renderAdminDashboard();
   showToast(`Event "${event.name}" state updated to ${statusClean.toUpperCase()}`, "info");
   logToTerminal(`Event ${eventId} (${event.name}) transitioned: ${oldStatus.toUpperCase()} → ${statusClean.toUpperCase()}`, "info");
 }
@@ -285,7 +338,7 @@ export async function handleStatusTransition(eventId, newStatus) {
 // ─── Registrations Table ──────────────────────────────────────────────────────
 
 /**
- * Render the filterable/searchable registrations data table.
+ * Render filterable/searchable registrations table (Phase 9.5 Empty & Search states).
  */
 export function renderRegistrationsTable() {
   const tbody      = document.getElementById("registrations-table-body");
@@ -300,7 +353,7 @@ export function renderRegistrationsTable() {
     const matchSearch =
       r.studentName.toLowerCase().includes(query) ||
       r.rollNumber.toLowerCase().includes(query)  ||
-      r.id.toLowerCase().includes(query);
+      (r.ticketCode || r.id).toLowerCase().includes(query);
     const matchEvent = filterEv === "ALL" || r.eventId.toString() === filterEv;
     return matchSearch && matchEvent;
   });
@@ -337,7 +390,7 @@ export function renderRegistrationsTable() {
 // ─── Students Directory Table ─────────────────────────────────────────────────
 
 /**
- * Render the Students Directory table.
+ * Render Students Directory table (Phase 9.5 Empty state).
  */
 export function renderStudentsTable() {
   const tbody      = document.getElementById("students-table-body");
@@ -347,7 +400,6 @@ export function renderStudentsTable() {
   const { registrations } = getState();
   const query = (document.getElementById("student-dir-search")?.value || "").toLowerCase().trim();
 
-  // Aggregate student stats from registrations
   const studentMap = new Map();
   registrations.forEach((r) => {
     const key = r.rollNumber.toLowerCase();
@@ -410,6 +462,13 @@ export function renderTicketsTable() {
 
   tbody.innerHTML = "";
 
+  if (filtered.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" class="text-center text-muted" style="padding: 1.5rem;">No ticket verification records found.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
   filtered.forEach((reg) => {
     const code = reg.ticketCode || reg.id;
     const tr = document.createElement("tr");
@@ -454,20 +513,24 @@ export async function handleCancelRegistration(regId) {
   saveLocalState(updatedEvents, updatedRegs);
 
   const mutatedEvent = updatedEvents.find((e) => e.id === reg.eventId);
-  await cancelRegistration(regId, mutatedEvent);
+  const res = await cancelRegistration(regId, mutatedEvent);
 
-  showToast(`Registration ${regId} canceled. Seat returned to pool.`, "warning");
-  logToTerminal(
-    `Canceled registration ${regId} (${reg.studentName}). Seats available for ${reg.eventName} increased.`,
-    "warn"
-  );
+  if (res.error) {
+    showToast(getFriendlyErrorMessage(res.error), "error");
+  } else {
+    showToast(`Registration ${regId} canceled. Seat returned to pool.`, "warning");
+    logToTerminal(
+      `Canceled registration ${regId} (${reg.studentName}). Seats available for ${reg.eventName} increased.`,
+      "warn"
+    );
+  }
   renderAdminDashboard();
 }
 
 // ─── Add / Edit Event Modal ───────────────────────────────────────────────────
 
 /**
- * Open the create-event modal (blank form).
+ * Open create event modal (blank form).
  */
 export function openCreateEventModal() {
   _configureEventModal({
@@ -487,7 +550,7 @@ export function openCreateEventModal() {
 }
 
 /**
- * Open the edit-event modal pre-filled with the event's current values.
+ * Open edit event modal pre-filled with event details.
  * @param {number} id
  */
 export function openEditEventModal(id) {
@@ -608,17 +671,18 @@ async function _doCreateEvent(data) {
   const v = validateEventForm(data.name, data.date, data.seats, events, null);
   if (!v.valid) return { success: false, error: v.error };
 
-  const formattedDate = formatDateForDisplay(v.dateClean);
+  const formattedDate = formatDateForDisplay(v.dateClean, true);
   const nextId = events.length > 0 ? Math.max(...events.map((e) => e.id)) + 1 : 1;
 
   const newEvent = {
     id:          nextId,
     name:        v.nameClean,
     description: (data.description || "").trim(),
+    eventDate:   v.dateClean,
     date:        formattedDate,
     rawDate:     v.dateClean,
-    startTime:   (data.startTime || "09:00 AM").trim(),
-    endTime:     (data.endTime || "05:00 PM").trim(),
+    startTime:   formatTimeForDisplay((data.startTime || "09:00 AM").trim()),
+    endTime:     formatTimeForDisplay((data.endTime || "05:00 PM").trim()),
     venue:       (data.venue || "Main Auditorium").trim(),
     seats:       v.seatsNum,
     registered:  0,
@@ -626,7 +690,7 @@ async function _doCreateEvent(data) {
   };
 
   const result = await createEvent(newEvent);
-  if (result.error) return { success: false, error: result.error.message ?? "Failed to create event." };
+  if (result.error) return { success: false, error: getFriendlyErrorMessage(result.error) };
 
   const updatedEvents = [...events, newEvent];
   setState({ events: updatedEvents });
@@ -655,17 +719,18 @@ async function _doEditEvent(targetId, data) {
   const v = validateEventForm(data.name, data.date, data.seats, events, targetId);
   if (!v.valid) return { success: false, error: v.error };
 
-  const formattedDate = formatDateForDisplay(v.dateClean);
+  const formattedDate = formatDateForDisplay(v.dateClean, true);
   const oldName = event.name;
 
   const updatedEvent = {
     ...event,
     name:        v.nameClean,
     description: (data.description || "").trim(),
+    eventDate:   v.dateClean,
     date:        formattedDate,
     rawDate:     v.dateClean,
-    startTime:   (data.startTime || "09:00 AM").trim(),
-    endTime:     (data.endTime || "05:00 PM").trim(),
+    startTime:   formatTimeForDisplay((data.startTime || "09:00 AM").trim()),
+    endTime:     formatTimeForDisplay((data.endTime || "05:00 PM").trim()),
     venue:       (data.venue || "Main Auditorium").trim(),
     seats:       v.seatsNum,
     status:      (data.status || "open").toLowerCase(),
@@ -673,7 +738,6 @@ async function _doEditEvent(targetId, data) {
 
   const updatedEvents = events.map((e) => (e.id === targetId ? updatedEvent : e));
 
-  // Sync event name in existing registrations if it changed
   const updatedRegs = (oldName !== v.nameClean)
     ? registrations.map((r) =>
         r.eventId === targetId ? { ...r, eventName: v.nameClean } : r
@@ -683,7 +747,8 @@ async function _doEditEvent(targetId, data) {
   setState({ events: updatedEvents, registrations: updatedRegs });
   saveLocalState(updatedEvents, updatedRegs);
 
-  await updateEvent(updatedEvent);
+  const res = await updateEvent(updatedEvent);
+  if (res.error) return { success: false, error: getFriendlyErrorMessage(res.error) };
 
   showToast(`Event "${updatedEvent.name}" updated!`, "success");
   logToTerminal(
@@ -695,7 +760,7 @@ async function _doEditEvent(targetId, data) {
 }
 
 /**
- * Show a browser confirm dialog and delete the event if confirmed.
+ * Delete event with confirmation.
  * @param {number} id
  */
 export async function confirmAndDeleteEvent(id) {
@@ -719,7 +784,8 @@ export async function confirmAndDeleteEvent(id) {
   setState({ events: updatedEvents, registrations: updatedRegs });
   saveLocalState(updatedEvents, updatedRegs);
 
-  await deleteEvent(targetId);
+  const res = await deleteEvent(targetId);
+  if (res.error) showToast(getFriendlyErrorMessage(res.error), "error");
 
   showToast(`Event "${event.name}" deleted.`, "warning");
   logToTerminal(
@@ -745,4 +811,3 @@ function _setValue(id, val) {
   const el = document.getElementById(id);
   if (el) el.value = val ?? "";
 }
-

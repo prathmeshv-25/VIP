@@ -1,19 +1,19 @@
 /**
- * Ticket & My Events UI (Phase 4 & Phase 4.1)
+ * Ticket & My Events UI (Phase 9 — Production Hardening)
  *
- * Handles Student Dashboard header ("Hello, Rahul 👋"),
- * 3 key metrics (Registered Events, Upcoming, Completed),
- * MY EVENTS grid cards, and ticket receipt modal trigger.
+ * Handles Student Dashboard greeting banner, key metrics (Registered Events, Upcoming, Completed, Cancelled),
+ * MY EVENTS grid cards with snapshot fallbacks and formatted dates/times, and ticket receipt modal trigger.
  */
 
 import { getState } from "../state/appState.js";
 import { escapeHtml } from "../utils/security.js";
+import { formatDateForDisplay } from "../utils/formatting.js";
 import { showToast } from "./notifications.js";
 import { showConfirmationModal } from "./registration.js";
 import { renderStudentAnalytics } from "./analytics.js";
 
 /**
- * Wire up the ticket lookup search button and Enter-key handler.
+ * Wire up ticket lookup search button and Enter-key handler.
  */
 export function setupTicketLookup() {
   const searchBtn = document.getElementById("lookup-ticket-btn");
@@ -36,7 +36,7 @@ export function autoLookupForCurrentUser() {
   const { currentUser, profile, registrations } = getState();
   const inputEl = document.getElementById("lookup-roll-number");
 
-  // 1. Student Dashboard Greeting Banner ("Hello, Rahul 👋")
+  // 1. Student Dashboard Greeting Banner
   const name = profile?.full_name || currentUser?.fullName || currentUser?.name || "Student";
   const firstName = name.split(" ")[0] || "Student";
 
@@ -46,8 +46,8 @@ export function autoLookupForCurrentUser() {
   }
 
   // 2. Filter registrations for current student
-  const studentId   = currentUser?.id || null;
-  const rollNumber  = profile?.roll_number || currentUser?.rollNumber || "";
+  const studentId  = currentUser?.id || null;
+  const rollNumber = profile?.roll_number || currentUser?.rollNumber || "";
 
   if (inputEl && rollNumber && !inputEl.value) {
     inputEl.value = rollNumber;
@@ -62,7 +62,8 @@ export function autoLookupForCurrentUser() {
     studentRegs = registrations.filter((r) => (r.rollNumber || "").toLowerCase() === q);
   }
 
-  // 3. Calculate Dashboard Metrics (Phase 8.1: Registered, Upcoming, Completed, Cancelled)
+  // 3. Calculate Dashboard Metrics
+  const now = new Date();
   const totalCount = studentRegs.length;
   let completedCount = 0;
   let upcomingCount  = 0;
@@ -75,20 +76,16 @@ export function autoLookupForCurrentUser() {
     } else if (status === "completed") {
       completedCount++;
     } else {
-      if (r.eventDate) {
-        const d = new Date(r.eventDate);
-        if (!isNaN(d.getTime()) && d < new Date("2026-09-11")) {
-          completedCount++;
-        } else {
-          upcomingCount++;
-        }
+      const rawD = r.eventDateSnapshot || r.eventDate || "";
+      const d = new Date(rawD);
+      if (!isNaN(d.getTime()) && d < now) {
+        completedCount++;
       } else {
         upcomingCount++;
       }
     }
   });
 
-  // Update metric counters
   const regCountEl  = document.getElementById("stat-registered-count");
   const upCountEl   = document.getElementById("stat-upcoming-count");
   const compCountEl = document.getElementById("stat-completed-count");
@@ -107,7 +104,7 @@ export function autoLookupForCurrentUser() {
 }
 
 /**
- * Render MY EVENTS cards grid for the student.
+ * Render MY EVENTS cards grid for the student (Phase 9.5 Empty & Error states).
  * @param {Array} studentRegs
  * @param {string} searchRollQuery
  */
@@ -119,7 +116,7 @@ export function renderMyEvents(studentRegs, searchRollQuery = "") {
 
   container.innerHTML = "";
 
-  if (studentRegs.length === 0) {
+  if (!studentRegs || studentRegs.length === 0) {
     if (emptyState) {
       emptyState.classList.remove("hidden");
       const p = document.getElementById("empty-state-text") || emptyState.querySelector("p");
@@ -137,6 +134,7 @@ export function renderMyEvents(studentRegs, searchRollQuery = "") {
   studentRegs.forEach((reg) => {
     const numericId = parseInt(String(reg.id || "").replace(/\D/g, ""), 10);
     const seatNum   = reg.seatNumber || reg.seat_number || (!isNaN(numericId) && numericId > 0 ? (numericId % 50) + 1 : 42);
+    const dateFormatted = formatDateForDisplay(reg.eventDate || reg.eventDateSnapshot, true);
 
     const card = document.createElement("div");
     card.className = "my-event-card";
@@ -146,7 +144,7 @@ export function renderMyEvents(studentRegs, searchRollQuery = "") {
           <h3 class="my-event-title">${escapeHtml(reg.eventName)}</h3>
         </div>
         <div class="my-event-date">
-          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(reg.eventDate)}
+          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(dateFormatted)}
         </div>
         <div class="my-event-seat">
           <iconify-icon icon="fa6-solid:chair"></iconify-icon> Seat: ${seatNum}
@@ -166,7 +164,7 @@ export function renderMyEvents(studentRegs, searchRollQuery = "") {
 }
 
 /**
- * Search registrations by roll number and render the results.
+ * Search registrations by roll number.
  * @param {string} rollQuery
  */
 export function performTicketLookup(rollQuery) {
@@ -186,7 +184,7 @@ export function performTicketLookup(rollQuery) {
 }
 
 /**
- * Show the confirmation modal / ticket pass for a registered ticket.
+ * Show confirmation modal for ticket.
  * @param {string} regId
  */
 export function viewTicketReceipt(regId) {
@@ -196,9 +194,7 @@ export function viewTicketReceipt(regId) {
 }
 
 /**
- * Realtime targeted update for student ticket view.
- * If the registration belongs to the current logged in student or matches their roll number,
- * updates the student dashboard metrics and appends/updates the ticket card O(1).
+ * Targeted update for student ticket view.
  * @param {object} reg
  */
 export function appendTargetedStudentTicket(reg) {
@@ -214,4 +210,3 @@ export function appendTargetedStudentTicket(reg) {
     autoLookupForCurrentUser();
   }
 }
-

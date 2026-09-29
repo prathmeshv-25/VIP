@@ -1,16 +1,32 @@
 /**
- * Event Service
+ * Event Service (Phase 9 — Production Hardening)
  *
  * All Supabase database operations for the `events` table.
- * Falls back to localStorage when Supabase is unavailable.
- *
- * Every function returns plain JS objects — no Supabase types leak out.
+ * Enforces controlled state machine transitions (DRAFT → OPEN → CLOSED → COMPLETED / CANCELLED),
+ * standardized DATE & TIMESTAMPTZ formatting, and structured error handling.
  */
 
 import { getSupabaseClient } from "../config/supabase.js";
 import { logNetworkConsole } from "../ui/notifications.js";
+import {
+  formatDateForDisplay,
+  formatTimeForDisplay,
+  toIsoTimestamp,
+} from "../utils/formatting.js";
+import { getFriendlyErrorMessage, ERROR_CODES } from "../utils/errorHandler.js";
 
 const STORAGE_KEY_EVENTS = "ps4_events_v1";
+
+/**
+ * Phase 9.3 Event State Machine Allowed Transitions
+ */
+export const ALLOWED_TRANSITIONS = {
+  draft:     ["open", "cancelled"],
+  open:      ["closed", "cancelled"],
+  closed:    ["completed", "open", "cancelled"],
+  completed: [],
+  cancelled: [],
+};
 
 /** Seed data used when no database is available */
 const INITIAL_EVENTS = [
@@ -18,6 +34,9 @@ const INITIAL_EVENTS = [
     id: 1,
     name: "Code Clash",
     description: "Competitive algorithmic coding challenge for student programmers.",
+    eventDate: "2026-09-10",
+    startsAt: "2026-09-10T09:00:00+05:30",
+    endsAt: "2026-09-10T12:00:00+05:30",
     date: "10 Sept 2026",
     rawDate: "2026-09-10",
     startTime: "09:00 AM",
@@ -31,6 +50,9 @@ const INITIAL_EVENTS = [
     id: 2,
     name: "Web Warfare",
     description: "Real-time front-end design and web development battle.",
+    eventDate: "2026-09-10",
+    startsAt: "2026-09-10T13:00:00+05:30",
+    endsAt: "2026-09-10T16:00:00+05:30",
     date: "10 Sept 2026",
     rawDate: "2026-09-10",
     startTime: "01:00 PM",
@@ -44,6 +66,9 @@ const INITIAL_EVENTS = [
     id: 3,
     name: "Tech Quiz",
     description: "Fast-paced trivia competition on CS fundamentals and tech news.",
+    eventDate: "2026-09-10",
+    startsAt: "2026-09-10T16:30:00+05:30",
+    endsAt: "2026-09-10T18:00:00+05:30",
     date: "10 Sept 2026",
     rawDate: "2026-09-10",
     startTime: "04:30 PM",
@@ -56,18 +81,25 @@ const INITIAL_EVENTS = [
 ];
 
 /**
- * Map a raw Supabase `events` row to the internal event shape.
+ * Map a raw Supabase `events` row to the internal event shape (Phase 9.1 Schema).
  * @param {object} row
  */
 export function mapEvent(row) {
+  const eventDate = row.event_date || row.raw_date || row.rawDate || "2026-09-28";
+  const startsAt  = row.starts_at  || row.startsAt  || toIsoTimestamp(eventDate, row.start_time || row.startTime || "09:00 AM");
+  const endsAt    = row.ends_at    || row.endsAt    || toIsoTimestamp(eventDate, row.end_time || row.endTime || "05:00 PM");
+
   return {
     id:          Number(row.id),
     name:        row.name,
     description: row.description || "",
-    date:        row.date,
-    rawDate:     row.raw_date || row.rawDate || "",
-    startTime:   row.start_time || row.startTime || "09:00 AM",
-    endTime:     row.end_time || row.endTime || "05:00 PM",
+    eventDate:   eventDate,
+    startsAt:    startsAt,
+    endsAt:      endsAt,
+    date:        formatDateForDisplay(eventDate, true),
+    rawDate:     eventDate,
+    startTime:   formatTimeForDisplay(row.start_time || row.startTime || startsAt),
+    endTime:     formatTimeForDisplay(row.end_time || row.endTime || endsAt),
     venue:       row.venue || "Main Auditorium",
     seats:       Number(row.seats),
     registered:  Number(row.registered || 0),
@@ -110,7 +142,7 @@ export async function fetchEvents() {
           "/rest/v1/events",
           500,
           Date.now() - t0,
-          error.message
+          getFriendlyErrorMessage(error)
         );
       }
     } catch (err) {
@@ -124,25 +156,32 @@ export async function fetchEvents() {
 
   const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
   if (saved) {
-    try { return JSON.parse(saved); } catch { /* corrupt data */ }
+    try { return JSON.parse(saved).map(mapEvent); } catch { /* corrupt data */ }
   }
-  return JSON.parse(JSON.stringify(INITIAL_EVENTS));
+  return INITIAL_EVENTS.map(mapEvent);
 }
 
 /**
- * Insert a new event row.
- * @param {{ id, name, description, date, rawDate, startTime, endTime, venue, seats, status }} newEvent
+ * Insert a new event row (Phase 9.1 & 9.3).
+ * @param {object} newEvent
  */
 export async function createEvent(newEvent) {
   const t0 = Date.now();
   const supabase = getSupabaseClient();
 
+  const eventDate = newEvent.eventDate || newEvent.rawDate || "2026-09-28";
+  const startsAt  = newEvent.startsAt  || toIsoTimestamp(eventDate, newEvent.startTime || "09:00 AM");
+  const endsAt    = newEvent.endsAt    || toIsoTimestamp(eventDate, newEvent.endTime || "05:00 PM");
+
   const payload = {
     id:          newEvent.id,
     name:        newEvent.name,
     description: newEvent.description || "",
-    date:        newEvent.date,
-    raw_date:    newEvent.rawDate,
+    event_date:  eventDate,
+    starts_at:   startsAt,
+    ends_at:     endsAt,
+    date:        formatDateForDisplay(eventDate, true),
+    raw_date:    eventDate,
     start_time:  newEvent.startTime || "09:00 AM",
     end_time:    newEvent.endTime || "05:00 PM",
     venue:       newEvent.venue || "Main Auditorium",
@@ -154,17 +193,19 @@ export async function createEvent(newEvent) {
   if (supabase) {
     try {
       const { error } = await supabase.from("events").insert([payload]);
+      const friendlyErr = error ? getFriendlyErrorMessage(error) : null;
+
       logNetworkConsole(
         "POST",
         "/rest/v1/events",
         error ? 400 : 201,
         Date.now() - t0,
-        error ? error.message : `Created event ID ${newEvent.id} [${payload.status}]`
+        error ? friendlyErr : `Created event ID ${newEvent.id} [${payload.status.toUpperCase()}]`
       );
-      if (error) return { error };
+      if (error) return { error: new Error(friendlyErr) };
     } catch (err) {
       logNetworkConsole("POST", "/rest/v1/events", 500, Date.now() - t0, err.message);
-      return { error: err };
+      return { error: new Error(getFriendlyErrorMessage(err)) };
     }
   } else {
     logNetworkConsole("POST", "/api/v1/events", 201, 15, `Created "${newEvent.name}"`);
@@ -175,17 +216,24 @@ export async function createEvent(newEvent) {
 
 /**
  * Update an existing event row.
- * @param {{ id, name, description, date, rawDate, startTime, endTime, venue, seats, registered, status }} eventData
+ * @param {object} eventData
  */
 export async function updateEvent(eventData) {
   const t0 = Date.now();
   const supabase = getSupabaseClient();
 
+  const eventDate = eventData.eventDate || eventData.rawDate || "2026-09-28";
+  const startsAt  = eventData.startsAt  || toIsoTimestamp(eventDate, eventData.startTime || "09:00 AM");
+  const endsAt    = eventData.endsAt    || toIsoTimestamp(eventDate, eventData.endTime || "05:00 PM");
+
   const payload = {
     name:        eventData.name,
     description: eventData.description || "",
-    date:        eventData.date,
-    raw_date:    eventData.rawDate,
+    event_date:  eventDate,
+    starts_at:   startsAt,
+    ends_at:     endsAt,
+    date:        formatDateForDisplay(eventDate, true),
+    raw_date:    eventDate,
     start_time:  eventData.startTime || "09:00 AM",
     end_time:    eventData.endTime || "05:00 PM",
     venue:       eventData.venue || "Main Auditorium",
@@ -201,17 +249,19 @@ export async function updateEvent(eventData) {
         .update(payload)
         .eq("id", eventData.id);
 
+      const friendlyErr = error ? getFriendlyErrorMessage(error) : null;
+
       logNetworkConsole(
         "PATCH",
         `/rest/v1/events?id=eq.${eventData.id}`,
         error ? 400 : 200,
         Date.now() - t0,
-        error ? error.message : `Updated event ${eventData.id}`
+        error ? friendlyErr : `Updated event ${eventData.id}`
       );
-      if (error) return { error };
+      if (error) return { error: new Error(friendlyErr) };
     } catch (err) {
       logNetworkConsole("PATCH", "/rest/v1/events", 500, Date.now() - t0, err.message);
-      return { error: err };
+      return { error: new Error(getFriendlyErrorMessage(err)) };
     }
   } else {
     logNetworkConsole(
@@ -227,14 +277,34 @@ export async function updateEvent(eventData) {
 }
 
 /**
- * Transition an event's lifecycle status (e.g., draft → open, open → closed/cancelled).
+ * Transition an event's lifecycle status with State Machine Validation (Phase 9.3).
+ * Allowed transitions:
+ *  - DRAFT → OPEN, CANCELLED
+ *  - OPEN → CLOSED, CANCELLED
+ *  - CLOSED → COMPLETED, OPEN, CANCELLED
+ *  - COMPLETED → (None / Terminal)
+ *  - CANCELLED → (None / Terminal)
+ *
  * @param {number} eventId
- * @param {string} newStatus — draft, open, closed, completed, cancelled
+ * @param {string} newStatus - draft, open, closed, completed, cancelled
+ * @param {string} [currentStatus] - current event state
+ * @returns {Promise<{ success?: boolean, error?: Error }>}
  */
-export async function updateEventStatus(eventId, newStatus) {
+export async function updateEventStatus(eventId, newStatus, currentStatus = null) {
   const t0 = Date.now();
   const supabase = getSupabaseClient();
   const statusClean = String(newStatus).toLowerCase();
+
+  // Validate state machine rules if current status is provided
+  if (currentStatus) {
+    const cur = String(currentStatus).toLowerCase();
+    const allowed = ALLOWED_TRANSITIONS[cur] || [];
+    if (cur !== statusClean && !allowed.includes(statusClean)) {
+      const msg = `Invalid state transition: Cannot change event status from ${cur.toUpperCase()} to ${statusClean.toUpperCase()}.`;
+      logNetworkConsole("PATCH", `/rest/v1/events?id=eq.${eventId}`, 422, 5, msg);
+      return { error: new Error(msg) };
+    }
+  }
 
   if (supabase) {
     try {
@@ -243,21 +313,23 @@ export async function updateEventStatus(eventId, newStatus) {
         .update({ status: statusClean })
         .eq("id", eventId);
 
+      const friendlyErr = error ? getFriendlyErrorMessage(error) : null;
+
       logNetworkConsole(
         "PATCH",
         `/rest/v1/events?id=eq.${eventId}`,
         error ? 400 : 200,
         Date.now() - t0,
-        error ? error.message : `Event ${eventId} transition → ${statusClean.toUpperCase()}`
+        error ? friendlyErr : `Event ${eventId} transition → ${statusClean.toUpperCase()}`
       );
-      if (error) return { error };
+      if (error) return { error: new Error(friendlyErr) };
     } catch (err) {
       logNetworkConsole("PATCH", "/rest/v1/events", 500, Date.now() - t0, err.message);
-      return { error: err };
+      return { error: new Error(getFriendlyErrorMessage(err)) };
     }
   }
 
-  return {};
+  return { success: true };
 }
 
 /**
@@ -271,23 +343,25 @@ export async function deleteEvent(eventId) {
   if (supabase) {
     try {
       const { error } = await supabase.from("events").delete().eq("id", eventId);
+      const friendlyErr = error ? getFriendlyErrorMessage(error) : null;
+
       logNetworkConsole(
         "DELETE",
         `/rest/v1/events?id=eq.${eventId}`,
         error ? 400 : 200,
         Date.now() - t0,
-        error ? error.message : `Deleted event ${eventId}`
+        error ? friendlyErr : `Deleted event ${eventId}`
       );
-      if (error) return { error };
+      if (error) return { error: new Error(friendlyErr) };
     } catch (err) {
       logNetworkConsole("DELETE", "/rest/v1/events", 500, Date.now() - t0, err.message);
-      return { error: err };
+      return { error: new Error(getFriendlyErrorMessage(err)) };
     }
   } else {
     logNetworkConsole("DELETE", `/api/v1/events/${eventId}`, 200, 15, "Deleted event");
   }
 
-  return {};
+  return { success: true };
 }
 
 /**
@@ -305,6 +379,9 @@ export async function resetEvents() {
           id: ev.id,
           name: ev.name,
           description: ev.description,
+          event_date: ev.eventDate,
+          starts_at: ev.startsAt,
+          ends_at: ev.endsAt,
           date: ev.date,
           raw_date: ev.rawDate,
           start_time: ev.startTime,
@@ -320,5 +397,5 @@ export async function resetEvents() {
       logNetworkConsole("POST", "/rest/v1/rpc/reset_events", 500, Date.now() - t0, err.message);
     }
   }
-  return JSON.parse(JSON.stringify(INITIAL_EVENTS));
+  return INITIAL_EVENTS.map(mapEvent);
 }

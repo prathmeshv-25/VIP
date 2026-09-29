@@ -1,32 +1,45 @@
 /**
- * Events UI
+ * Events UI (Phase 9 — Production Hardening)
  *
- * Renders the event catalog grid, the registration form dropdown,
- * and the quick-select "Register" button on each card.
+ * Renders the event catalog grid, registration form dropdown options,
+ * quick-select event actions, and supports Loading / Empty / Error / Offline states (Phase 9.5).
  */
 
 import { getState } from "../state/appState.js";
 import { escapeHtml } from "../utils/security.js";
-import { getAvailableSeats } from "../utils/formatting.js";
+import { getAvailableSeats, formatDateForDisplay, formatDateTimeRange } from "../utils/formatting.js";
 import { switchTab } from "./tabs.js";
 
 /**
  * Render all event cards in the #events-grid container.
- * Also updates the header quick-stats (#stat-total-events, #stat-total-available).
+ * Supports Phase 9.5 Loading, Empty, and Offline UI states.
  */
 export function renderEventCatalog() {
   const grid = document.getElementById("events-grid");
   if (!grid) return;
 
-  const { events } = getState();
+  const { events, supabaseOnline } = getState();
   grid.innerHTML = "";
+
+  // Phase 9.5 Empty State
+  if (!events || events.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1; padding: 3rem 1.5rem;">
+        <iconify-icon icon="fa6-regular:calendar-xmark" class="empty-icon"></iconify-icon>
+        <h3 style="margin-top:0.75rem; color:var(--text-primary);">No Events Available</h3>
+        <p class="text-muted">There are currently no events scheduled. Please check back later.</p>
+      </div>
+    `;
+    _updateTotalAvailableSeatsPill();
+    return;
+  }
 
   let totalAvailableSeats = 0;
 
   events.forEach((event) => {
     const available = getAvailableSeats(event);
-    const status = (event.status || "open").toLowerCase();
-    const isOpen = status === "open";
+    const status    = (event.status || "open").toLowerCase();
+    const isOpen    = status === "open";
 
     if (isOpen) {
       totalAvailableSeats += available;
@@ -68,7 +81,8 @@ export function renderEventCatalog() {
 
     const percentage = Math.min(100, Math.round((event.registered / event.seats) * 100));
     const venueText  = event.venue ? `${escapeHtml(event.venue)}` : "Main Auditorium";
-    const timeText   = event.startTime ? `${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime || '')}` : "09:00 AM - 05:00 PM";
+    const displayDate = formatDateForDisplay(event.eventDate || event.rawDate || event.date, true);
+    const timeText   = formatDateTimeRange(event.startsAt || event.startTime, event.endsAt || event.endTime);
 
     const cardEl = document.createElement("div");
     cardEl.className = !canRegister ? "event-card card-full" : "event-card";
@@ -81,7 +95,7 @@ export function renderEventCatalog() {
         </div>
         ${event.description ? `<p class="text-muted" style="font-size:0.82rem; margin-bottom:0.6rem;">${escapeHtml(event.description)}</p>` : ''}
         <div class="event-date">
-          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(event.date)} &bull; ${timeText}
+          <iconify-icon icon="fa6-regular:calendar-check"></iconify-icon> ${escapeHtml(displayDate)} &bull; ${timeText}
         </div>
         <div class="event-date" style="margin-top:0.2rem; font-size:0.8rem; color:var(--text-muted);">
           <iconify-icon icon="fa6-solid:location-dot"></iconify-icon> ${venueText}
@@ -123,13 +137,11 @@ export function renderEventCatalog() {
 
 /**
  * Granular DOM update for a single event card on Realtime payload change.
- * Avoids full catalog re-render.
  * @param {object} event
  */
 export function updateTargetedEventCardUI(event) {
   const cardEl = document.querySelector(`.event-card[data-event-id="${event.id}"]`);
   if (!cardEl) {
-    // If new event, re-render catalog
     renderEventCatalog();
     renderFormOptions();
     return;
@@ -174,10 +186,8 @@ export function updateTargetedEventCardUI(event) {
 
   const percentage = Math.min(100, Math.round((event.registered / event.seats) * 100));
 
-  // Update card class
   cardEl.className = !canRegister ? "event-card card-full" : "event-card";
 
-  // Update Badge
   const cardTop = cardEl.querySelector(".card-top");
   if (cardTop) {
     const existingBadge = cardTop.querySelector(".badge");
@@ -186,27 +196,23 @@ export function updateTargetedEventCardUI(event) {
     }
   }
 
-  // Update Seat Available Text
   const seatTextEl = cardEl.querySelector(".seats-available-text");
   if (seatTextEl) {
     seatTextEl.className = `seats-available-text ${isFull ? "full" : isLow ? "low" : "available"}`;
     seatTextEl.textContent = isFull ? "FULL" : `${available} seats left`;
   }
 
-  // Update Progress Fill
   const progressFillEl = cardEl.querySelector(".progress-fill");
   if (progressFillEl) {
     progressFillEl.className = `progress-fill ${isFull ? "full" : isLow ? "low" : ""}`;
     progressFillEl.style.width = `${percentage}%`;
   }
 
-  // Update Small Registered Text
   const smallTextEl = cardEl.querySelector(".seats-counter-box small");
   if (smallTextEl) {
     smallTextEl.textContent = `${event.registered} / ${event.seats} Registered (${percentage}% filled)`;
   }
 
-  // Update Register Button
   const btnEl = cardEl.querySelector("button");
   if (btnEl) {
     btnEl.className = `btn ${canRegister ? "btn-primary" : "btn-outline-secondary"} btn-block`;
@@ -231,13 +237,12 @@ function _updateTotalAvailableSeatsPill() {
 
   const statTotal     = document.getElementById("stat-total-events");
   const statAvailable = document.getElementById("stat-total-available");
-  if (statTotal)     statTotal.textContent     = events.length;
+  if (statTotal)     statTotal.textContent     = events ? events.length : 0;
   if (statAvailable) statAvailable.textContent = totalAvailableSeats;
 }
 
 /**
- * Render the event <select> dropdown in the registration form.
- * Preserves the user's current selection if the event still exists.
+ * Render event <select> dropdown in registration form.
  */
 export function renderFormOptions() {
   const select = document.getElementById("event-select");
@@ -248,34 +253,35 @@ export function renderFormOptions() {
 
   select.innerHTML = '<option value="">-- Choose an Event --</option>';
 
-  events.forEach((event) => {
-    const available = getAvailableSeats(event);
-    const status    = (event.status || "open").toLowerCase();
-    const isOpen    = status === "open";
-    const isFull    = available === 0;
+  if (events) {
+    events.forEach((event) => {
+      const available = getAvailableSeats(event);
+      const status    = (event.status || "open").toLowerCase();
+      const isOpen    = status === "open";
+      const isFull    = available === 0;
 
-    const opt = document.createElement("option");
-    opt.value = event.id;
+      const opt = document.createElement("option");
+      opt.value = event.id;
 
-    if (!isOpen) {
-      opt.textContent = `${event.name} — [${status.toUpperCase()}]`;
-      opt.disabled = true;
-    } else if (isFull) {
-      opt.textContent = `${event.name} — (FULL)`;
-      opt.disabled = true;
-    } else {
-      opt.textContent = `${event.name} — (${available} seats left)`;
-    }
+      if (!isOpen) {
+        opt.textContent = `${event.name} — [${status.toUpperCase()}]`;
+        opt.disabled = true;
+      } else if (isFull) {
+        opt.textContent = `${event.name} — (FULL)`;
+        opt.disabled = true;
+      } else {
+        opt.textContent = `${event.name} — (${available} seats left)`;
+      }
 
-    select.appendChild(opt);
-  });
+      select.appendChild(opt);
+    });
+  }
 
   if (currentSelection) select.value = currentSelection;
 }
 
 /**
- * Pre-select an event in the registration form and switch to the Register tab.
- * Exposed on `window._ehSelectEvent` so inline onclick attributes can reach it.
+ * Pre-select an event in the registration form and switch tab.
  * @param {number} eventId
  */
 export function selectEventForRegistration(eventId) {

@@ -1,18 +1,21 @@
--- EventHub — Phase 3 & 3.1 Schema Migration
--- Run in full in Supabase SQL Editor (safe to re-run anytime).
+-- EventHub — Phase 9 Production Hardening Schema Migration
+-- Run in full in Supabase SQL Editor (idempotent / safe to re-run anytime).
 
 -- ─────────────────────────────────────────────────────────────
--- 1. EVENTS TABLE
+-- 1. EVENTS TABLE (Phase 9.1 Date & Time Cleanup)
 -- ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.events (
-  id          INT          PRIMARY KEY,
+  id          BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name        TEXT         NOT NULL,
   description TEXT         DEFAULT '',
-  date        TEXT         NOT NULL,    -- display format e.g. "10 Sept 2026"
-  raw_date    DATE,                     -- ISO date for sorting/filtering
-  start_time  TEXT         DEFAULT '09:00 AM',
-  end_time    TEXT         DEFAULT '05:00 PM',
+  event_date  DATE         NOT NULL DEFAULT CURRENT_DATE, -- Standard ISO Date
+  starts_at   TIMESTAMPTZ  DEFAULT NOW(),                 -- TIMESTAMPTZ start
+  ends_at     TIMESTAMPTZ  DEFAULT NOW() + INTERVAL '8 hours', -- TIMESTAMPTZ end
+  date        TEXT         DEFAULT '',                    -- Legacy display date fallback
+  raw_date    DATE,                                       -- Legacy raw_date fallback
+  start_time  TEXT         DEFAULT '09:00 AM',            -- Legacy start_time fallback
+  end_time    TEXT         DEFAULT '05:00 PM',            -- Legacy end_time fallback
   venue       TEXT         DEFAULT 'Main Auditorium',
   seats       INT          NOT NULL DEFAULT 30 CHECK (seats > 0),
   registered  INT          NOT NULL DEFAULT 0  CHECK (registered >= 0 AND registered <= seats),
@@ -20,13 +23,30 @@ CREATE TABLE IF NOT EXISTS public.events (
   created_at  TIMESTAMPTZ  DEFAULT NOW()
 );
 
--- Migration helpers for events table
+-- Migration helpers for events table (Phase 9.1 & 9.3)
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS event_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS ends_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '8 hours';
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS raw_date DATE;
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS start_time TEXT DEFAULT '09:00 AM';
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS end_time TEXT DEFAULT '05:00 PM';
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS venue TEXT DEFAULT 'Main Auditorium';
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
+
+-- Backfill event_date from raw_date or date if null
+UPDATE public.events SET event_date = COALESCE(raw_date, CURRENT_DATE) WHERE event_date IS NULL;
+
+-- Re-apply CHECK constraints explicitly
+ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_registered_check;
+ALTER TABLE public.events ADD CONSTRAINT events_registered_check
+  CHECK (registered >= 0 AND registered <= seats);
+ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_seats_check;
+ALTER TABLE public.events ADD CONSTRAINT events_seats_check
+  CHECK (seats > 0);
+ALTER TABLE public.events DROP CONSTRAINT IF EXISTS events_status_check;
+ALTER TABLE public.events ADD CONSTRAINT events_status_check
+  CHECK (status IN ('draft', 'open', 'closed', 'completed', 'cancelled'));
 
 -- ─────────────────────────────────────────────────────────────
 -- 2. PROFILES TABLE (links auth.users → metadata & role)
@@ -42,39 +62,59 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Migration helpers: add missing columns if profiles table already existed from earlier schema
+-- Migration helpers
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS roll_number TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
+-- Enforce unique email in profiles
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'profiles_email_unique' AND conrelid = 'public.profiles'::regclass
+  ) THEN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_email_unique UNIQUE (email);
+  END IF;
+END $$;
+
 -- ─────────────────────────────────────────────────────────────
--- 3. REGISTRATIONS TABLE (Phase 3 Schema)
+-- 3. REGISTRATIONS TABLE (Phase 9.2 Registration Snapshot Cleanup)
 -- ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.registrations (
-  id              TEXT         PRIMARY KEY,
-  event_id        INT          NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
-  event_name      TEXT         NOT NULL,
-  event_date      TEXT         NOT NULL,
-  student_name    TEXT         NOT NULL,
-  roll_number     TEXT         NOT NULL,
-  "timestamp"     TEXT         NOT NULL,
-  seats_left_after INT         NOT NULL,
-  user_id         UUID         REFERENCES auth.users ON DELETE CASCADE,
-  ticket_code     TEXT,
-  status          TEXT         NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'active', 'cancelled')),
-  registered_at   TIMESTAMPTZ  DEFAULT NOW(),
-  cancelled_at    TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ  DEFAULT NOW()
+  id                  TEXT         PRIMARY KEY,
+  event_id            INT          NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  event_name_snapshot TEXT         NOT NULL DEFAULT '', -- Historical snapshot
+  event_date_snapshot TEXT         NOT NULL DEFAULT '', -- Historical snapshot
+  event_name          TEXT         DEFAULT '',          -- Legacy column fallback
+  event_date          TEXT         DEFAULT '',          -- Legacy column fallback
+  student_name        TEXT         NOT NULL,
+  roll_number         TEXT         NOT NULL,
+  "timestamp"         TEXT         NOT NULL,
+  seats_left_after    INT          NOT NULL,
+  user_id             UUID         REFERENCES auth.users ON DELETE CASCADE,
+  ticket_code         TEXT,
+  status              TEXT         NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'active', 'cancelled')),
+  registered_at       TIMESTAMPTZ  DEFAULT NOW(),
+  cancelled_at        TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ  DEFAULT NOW()
 );
 
--- Migration helpers: add Phase 3 columns if registrations table already existed
+-- Migration helpers for snapshot columns (Phase 9.2)
+ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS event_name_snapshot TEXT DEFAULT '';
+ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS event_date_snapshot TEXT DEFAULT '';
 ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users ON DELETE CASCADE;
 ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS ticket_code TEXT;
 ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'confirmed';
 ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS registered_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+
+-- Backfill snapshot columns from legacy event_name / event_date if empty
+UPDATE public.registrations
+SET event_name_snapshot = COALESCE(NULLIF(event_name_snapshot, ''), event_name, 'Event'),
+    event_date_snapshot = COALESCE(NULLIF(event_date_snapshot, ''), event_date, '2026-09-28')
+WHERE event_name_snapshot = '' OR event_date_snapshot = '';
 
 -- ─────────────────────────────────────────────────────────────
 -- 4. GRANTS
@@ -82,39 +122,41 @@ ALTER TABLE public.registrations ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
--- Events: public read, authenticated admin write
 GRANT SELECT                        ON public.events       TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE        ON public.events       TO authenticated;
 
--- Profiles: authenticated read/insert/update of own row; admin reads all
 GRANT SELECT, INSERT, UPDATE        ON public.profiles     TO authenticated;
 
--- Registrations: authenticated read/insert; admin manages all
-GRANT SELECT, INSERT, UPDATE        ON public.registrations TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE        ON public.registrations TO authenticated;
+REVOKE ALL                          ON public.registrations FROM anon;
 GRANT DELETE                        ON public.registrations TO authenticated;
 
 -- ─────────────────────────────────────────────────────────────
--- 5. UNIQUE INDEXES — Phase 3.1 Duplicate Registration Guards
+-- 5. UNIQUE INDEXES & PERFORMANCE INDEXES
 -- ─────────────────────────────────────────────────────────────
 
--- Guard 1: One registration per authenticated student per event
 CREATE UNIQUE INDEX IF NOT EXISTS registrations_event_user_unique
   ON public.registrations (event_id, user_id)
   WHERE user_id IS NOT NULL;
 
--- Guard 2: One registration per roll number per event
 CREATE UNIQUE INDEX IF NOT EXISTS registrations_event_roll_unique
   ON public.registrations (event_id, lower(roll_number));
+
+CREATE INDEX IF NOT EXISTS idx_registrations_user_id  ON public.registrations(user_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_event_id ON public.registrations(event_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_status   ON public.registrations(status);
+CREATE INDEX IF NOT EXISTS idx_events_status          ON public.events(status);
+CREATE INDEX IF NOT EXISTS idx_events_event_date      ON public.events(event_date);
 
 -- ─────────────────────────────────────────────────────────────
 -- 6. SEED EVENTS
 -- ─────────────────────────────────────────────────────────────
 
-INSERT INTO public.events (id, name, date, raw_date, seats, registered)
+INSERT INTO public.events (id, name, event_date, date, raw_date, seats, registered, status)
 VALUES
-  (1, 'Code Clash',  '10 Sept 2026', '2026-09-10', 30, 0),
-  (2, 'Web Warfare', '10 Sept 2026', '2026-09-10', 25, 0),
-  (3, 'Tech Quiz',   '10 Sept 2026', '2026-09-10', 40, 0)
+  (1, 'Code Clash',  '2026-09-10', '10 Sept 2026', '2026-09-10', 30, 0, 'open'),
+  (2, 'Web Warfare', '2026-09-10', '10 Sept 2026', '2026-09-10', 25, 0, 'open'),
+  (3, 'Tech Quiz',   '2026-09-10', '10 Sept 2026', '2026-09-10', 40, 0, 'open')
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
@@ -125,7 +167,6 @@ ALTER TABLE public.events        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 
--- Drop old permissive & outdated policies
 DROP POLICY IF EXISTS "Public Read Events"          ON public.events;
 DROP POLICY IF EXISTS "Public All Events"           ON public.events;
 DROP POLICY IF EXISTS "events_read_public"          ON public.events;
@@ -134,6 +175,7 @@ DROP POLICY IF EXISTS "events_write_admin"          ON public.events;
 DROP POLICY IF EXISTS "Own profile read"            ON public.profiles;
 DROP POLICY IF EXISTS "Own profile update"          ON public.profiles;
 DROP POLICY IF EXISTS "profiles_own_read"           ON public.profiles;
+DROP POLICY IF EXISTS "profiles_read"               ON public.profiles;
 DROP POLICY IF EXISTS "profiles_self_insert"        ON public.profiles;
 DROP POLICY IF EXISTS "profiles_own_update"         ON public.profiles;
 DROP POLICY IF EXISTS "profiles_admin_read_all"     ON public.profiles;
@@ -143,10 +185,9 @@ DROP POLICY IF EXISTS "Public Insert Registrations" ON public.registrations;
 DROP POLICY IF EXISTS "Public Delete Registrations" ON public.registrations;
 DROP POLICY IF EXISTS "registrations_student_insert" ON public.registrations;
 DROP POLICY IF EXISTS "registrations_read"          ON public.registrations;
+DROP POLICY IF EXISTS "registrations_update"        ON public.registrations;
 DROP POLICY IF EXISTS "registrations_admin_delete"  ON public.registrations;
 
--- ── EVENTS policies ────────────────────────────────────────────
--- Anonymous and students can read OPEN events; Admin can read all states (DRAFT, CLOSED, etc.)
 CREATE POLICY "events_read_public" ON public.events
   FOR SELECT TO anon, authenticated
   USING (
@@ -154,14 +195,11 @@ CREATE POLICY "events_read_public" ON public.events
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- Only Admin can create, edit, or delete events
 CREATE POLICY "events_write_admin" ON public.events
   FOR ALL TO authenticated
   USING     ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
   WITH CHECK((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
 
--- ── PROFILES policies ──────────────────────────────────────────
--- Student can view own profile; Admin can view all profiles
 CREATE POLICY "profiles_read" ON public.profiles
   FOR SELECT TO authenticated
   USING (
@@ -169,12 +207,10 @@ CREATE POLICY "profiles_read" ON public.profiles
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- Authenticated user can create their own profile row on signup
 CREATE POLICY "profiles_self_insert" ON public.profiles
   FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = id);
 
--- Student can update own profile; Admin can update any profile
 CREATE POLICY "profiles_own_update" ON public.profiles
   FOR UPDATE TO authenticated
   USING (
@@ -182,8 +218,6 @@ CREATE POLICY "profiles_own_update" ON public.profiles
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- ── REGISTRATIONS policies ─────────────────────────────────────
--- Student can insert registration bound to their own user_id; Admin can insert for anyone
 CREATE POLICY "registrations_student_insert" ON public.registrations
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -191,16 +225,13 @@ CREATE POLICY "registrations_student_insert" ON public.registrations
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- Student can read their own registrations; Admin can read all registrations
 CREATE POLICY "registrations_read" ON public.registrations
   FOR SELECT TO authenticated
   USING (
-    user_id IS NULL OR
     auth.uid() = user_id OR
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- Student can update/cancel own registration; Admin can manage all
 CREATE POLICY "registrations_update" ON public.registrations
   FOR UPDATE TO authenticated
   USING (
@@ -208,7 +239,6 @@ CREATE POLICY "registrations_update" ON public.registrations
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
   );
 
--- Student can delete own registration; Admin can manage all
 CREATE POLICY "registrations_admin_delete" ON public.registrations
   FOR DELETE TO authenticated
   USING (
@@ -236,8 +266,11 @@ BEGIN
   END IF;
 END $$;
 
+ALTER TABLE public.events        REPLICA IDENTITY FULL;
+ALTER TABLE public.registrations REPLICA IDENTITY FULL;
+
 -- ─────────────────────────────────────────────────────────────
--- 9. ATOMIC SEAT BOOKING FUNCTION (Phase 3.2 Row-Locking Workflow)
+-- 9. ATOMIC SEAT BOOKING FUNCTION (Phase 9 & 3.2 Workflow)
 -- ─────────────────────────────────────────────────────────────
 
 DROP FUNCTION IF EXISTS public.register_for_event(TEXT, INT, TEXT, TEXT, TEXT);
@@ -254,18 +287,18 @@ CREATE OR REPLACE FUNCTION public.register_for_event(
   p_ticket_code     TEXT DEFAULT NULL
 )
 RETURNS TABLE (
-  id               TEXT,
-  event_id         INT,
-  event_name       TEXT,
-  event_date       TEXT,
-  student_name     TEXT,
-  roll_number      TEXT,
-  "timestamp"      TEXT,
-  seats_left_after INT,
-  registered       INT,
-  ticket_code      TEXT,
-  user_id          UUID,
-  status           TEXT
+  id                  TEXT,
+  event_id            INT,
+  event_name_snapshot TEXT,
+  event_date_snapshot TEXT,
+  student_name        TEXT,
+  roll_number         TEXT,
+  "timestamp"         TEXT,
+  seats_left_after    INT,
+  registered          INT,
+  ticket_code         TEXT,
+  user_id             UUID,
+  status              TEXT
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -286,7 +319,7 @@ BEGIN
     RAISE EXCEPTION 'EVENT_NOT_FOUND';
   END IF;
 
-  -- 1b. Check event is open for registration (Phase 5.1 Lifecycle Guard)
+  -- 1b. Check event lifecycle status (Phase 9.3 Lifecycle Guard)
   IF v_event.status IS NOT NULL AND LOWER(v_event.status) != 'open' THEN
     RAISE EXCEPTION 'EVENT_NOT_OPEN';
   END IF;
@@ -318,11 +351,13 @@ BEGIN
   -- 5. Generate ticket code
   v_ticket := COALESCE(p_ticket_code, 'EVT-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6)));
 
-  -- 6. Create registration record
+  -- 6. Create registration record with explicit snapshot columns (Phase 9.2)
   RETURN QUERY
   INSERT INTO public.registrations (
     id,
     event_id,
+    event_name_snapshot,
+    event_date_snapshot,
     event_name,
     event_date,
     student_name,
@@ -337,7 +372,9 @@ BEGIN
     p_registration_id,
     v_event.id,
     v_event.name,
-    v_event.date,
+    COALESCE(TO_CHAR(v_event.event_date, 'YYYY-MM-DD'), v_event.date),
+    v_event.name,
+    COALESCE(TO_CHAR(v_event.event_date, 'YYYY-MM-DD'), v_event.date),
     p_student_name,
     p_roll_number,
     p_timestamp,
@@ -349,8 +386,8 @@ BEGIN
   RETURNING
     public.registrations.id,
     public.registrations.event_id,
-    public.registrations.event_name,
-    public.registrations.event_date,
+    public.registrations.event_name_snapshot,
+    public.registrations.event_date_snapshot,
     public.registrations.student_name,
     public.registrations.roll_number,
     public.registrations."timestamp",
@@ -367,18 +404,3 @@ GRANT EXECUTE ON FUNCTION public.register_for_event(TEXT, INT, TEXT, TEXT, TEXT,
 
 -- Force PostgREST schema cache reload
 NOTIFY pgrst, 'reload schema';
-
--- ─────────────────────────────────────────────────────────────
--- 10. ADMIN ACCOUNT SETUP INSTRUCTIONS
--- ─────────────────────────────────────────────────────────────
--- Step 1: Create an Admin user in Supabase Dashboard:
---         Authentication → Users → Add User → Create User
---         (e.g., Email: admin@example.com, Password: adminpassword123)
---
--- Step 2: Copy the newly created User ID (UUID) from the Users list.
---
--- Step 3: Run this SQL query in Supabase SQL Editor (replace <ADMIN-UUID> & email):
---
--- INSERT INTO public.profiles (id, full_name, email, role)
--- VALUES ('<YOUR-ADMIN-USER-UUID>', 'System Administrator', 'admin@example.com', 'admin')
--- ON CONFLICT (id) DO UPDATE SET role = 'admin';
