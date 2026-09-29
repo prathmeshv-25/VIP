@@ -367,12 +367,24 @@ export async function resetRegistrations() {
  * @returns {Array} - updated registrations array
  */
 export function syncStateIntegrity(events, registrations) {
-  const regs = [...registrations];
+  let regs = [...registrations];
 
   events.forEach((event) => {
     const eventRegs = regs.filter((r) => r.eventId === event.id);
-    if (event.registered > eventRegs.length) {
-      const missingCount = event.registered - eventRegs.length;
+    const dbRegisteredCount = Number(event.registered || 0);
+
+    // If event has 0 registered count in DB (e.g. system reset), purge all local registrations for this event
+    if (dbRegisteredCount === 0) {
+      if (eventRegs.length > 0) {
+        regs = regs.filter((r) => r.eventId !== event.id);
+      }
+      return;
+    }
+
+    // If event.registered in DB is greater than actual registrations present,
+    // generate placeholder entries so counts match UI expectations
+    if (dbRegisteredCount > eventRegs.length) {
+      const missingCount = dbRegisteredCount - eventRegs.length;
       const startNum = eventRegs.length + 1;
       for (let i = 0; i < missingCount; i++) {
         const num = startNum + i;
@@ -388,8 +400,17 @@ export function syncStateIntegrity(events, registrations) {
           seats_left_after:    event.seats - num,
         }));
       }
-    } else if (event.registered < eventRegs.length) {
-      event.registered = eventRegs.length;
+    } else if (dbRegisteredCount < eventRegs.length) {
+      // Trim extra placeholder/orphaned registrations so local registration length matches DB truth
+      const extraCount = eventRegs.length - dbRegisteredCount;
+      let removed = 0;
+      regs = regs.filter((r) => {
+        if (r.eventId === event.id && removed < extraCount && (r.studentName.includes("Registered Student") || r.id.includes("System Seed"))) {
+          removed++;
+          return false;
+        }
+        return true;
+      });
     }
   });
 

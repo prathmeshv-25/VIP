@@ -16,7 +16,7 @@ import { restoreSession } from "./services/authService.js";
 import { fetchEvents, resetEvents } from "./services/eventService.js";
 import { fetchRegistrations, syncStateIntegrity, resetRegistrations } from "./services/registrationService.js";
 import { saveLocalState } from "./realtime/localPersistence.js";
-import { startRealtime, startPolling } from "./realtime/realtimeManager.js";
+import { startRealtime, startPolling, sendSystemResetBroadcast } from "./realtime/realtimeManager.js";
 import { updateStatusBadge, logNetworkConsole, showToast } from "./ui/notifications.js";
 import { renderEventCatalog, renderFormOptions, selectEventForRegistration } from "./ui/events.js";
 import { setupFormHandler, hideConfirmationModal, exportRegistrationsCSV } from "./ui/registration.js";
@@ -29,7 +29,7 @@ import {
   confirmAndDeleteEvent,
   handleStatusTransition,
 } from "./ui/dashboard.js";
-import { setupTicketLookup, viewTicketReceipt } from "./ui/tickets.js";
+import { setupTicketLookup, autoLookupForCurrentUser, viewTicketReceipt } from "./ui/tickets.js";
 import { setupAuthHandlers, applyRoleUI } from "./ui/auth.js";
 import { setupAuditPanel } from "./ui/audit.js";
 import { setupDbModal } from "./ui/dbModal.js";
@@ -54,6 +54,7 @@ function renderAllViews() {
   renderEventCatalog();
   renderFormOptions();
   renderAdminDashboard();
+  autoLookupForCurrentUser();
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -143,8 +144,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await resetRegistrations();
     const freshEvents = await resetEvents();
+    sendSystemResetBroadcast();
     setState({ events: freshEvents, registrations: [] });
     saveLocalState(freshEvents, []);
+    window.dispatchEvent(new Event("storage"));
     renderAllViews();
     showToast("System & Database reset to default state", "info");
   });

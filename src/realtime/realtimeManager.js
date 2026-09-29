@@ -29,11 +29,24 @@ let _pollingTimer = null;
  * @param {object} payload
  */
 export function handleRealtimeEventDelta(payload) {
-  if (!payload || !payload.new) return;
+  if (!payload) return;
+
+  const { events, registrations } = getState();
+
+  // Handle DELETE event type
+  if (payload.eventType === "DELETE" || (!payload.new && payload.old)) {
+    const deletedId = payload.old?.id;
+    let newEvents = deletedId ? events.filter((e) => e.id !== Number(deletedId)) : [];
+    const newHash = JSON.stringify(newEvents) + JSON.stringify(registrations);
+    setState({ events: newEvents, lastHash: newHash });
+    saveLocalState(newEvents, registrations);
+    return;
+  }
+
+  if (!payload.new) return;
   const rawRow = payload.new;
   const updatedEvent = mapEvent(rawRow);
 
-  const { events, registrations } = getState();
   const index = events.findIndex((e) => e.id === updatedEvent.id);
 
   let newEvents = [...events];
@@ -76,11 +89,30 @@ export function handleRealtimeEventDelta(payload) {
  * @param {object} payload
  */
 export function handleRealtimeRegistrationDelta(payload) {
-  if (!payload || !payload.new) return;
-  const rawRow = payload.new;
-  const newReg = mapRegistration(rawRow);
+  if (!payload) return;
 
   const { events, registrations } = getState();
+
+  // Handle DELETE event type or missing new payload (e.g. system reset or record cancel)
+  if (payload.eventType === "DELETE" || !payload.new || Object.keys(payload.new).length === 0) {
+    const deletedId = payload.old?.id;
+    let newRegs = [...registrations];
+    if (deletedId) {
+      newRegs = newRegs.filter((r) => r.id !== deletedId);
+    } else {
+      newRegs = [];
+    }
+
+    const newHash = JSON.stringify(events) + JSON.stringify(newRegs);
+    setState({ registrations: newRegs, lastHash: newHash });
+    saveLocalState(events, newRegs);
+
+    appendTargetedRegistrationRow(null);
+    return;
+  }
+
+  const rawRow = payload.new;
+  const newReg = mapRegistration(rawRow);
 
   // Attach event details if missing in payload
   if (!newReg.eventName || !newReg.eventDate) {
@@ -127,8 +159,23 @@ export function handleRealtimeRegistrationDelta(payload) {
 }
 
 /**
+ * Broadcast system reset event to all connected Supabase Realtime clients.
+ */
+export function sendSystemResetBroadcast() {
+  if (_realtimeChannel) {
+    try {
+      _realtimeChannel.send({
+        type: "broadcast",
+        event: "system_reset",
+        payload: { timestamp: Date.now() },
+      });
+    } catch { /* ignore broadcast errors */ }
+  }
+}
+
+/**
  * Start the Supabase Realtime channel.
- * Subscribes to changes on `events` and `registrations`.
+ * Subscribes to changes on `events` and `registrations`, plus system_reset broadcast.
  */
 export function startRealtime() {
   const supabase = getSupabaseClient();
@@ -150,6 +197,13 @@ export function startRealtime() {
       { event: "*", schema: "public", table: "registrations" },
       (payload) => handleRealtimeRegistrationDelta(payload)
     )
+    .on("broadcast", { event: "system_reset" }, async () => {
+      localStorage.removeItem("ps4_registrations_v1");
+      const freshEvents = await fetchEvents();
+      setState({ events: freshEvents, registrations: [] });
+      saveLocalState(freshEvents, []);
+      logNetworkConsole("WS", "/realtime/v1/system_reset", 200, 0, "System reset broadcast received");
+    })
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         logNetworkConsole(
@@ -222,9 +276,6 @@ export async function refreshFromRealtime(source = "manual") {
  * Only activates when there is no active Supabase client.
  */
 export function startPolling() {
-  if (getSupabaseClient()) return; // Realtime handles it
-  if (_pollingTimer) return;
-
   const pollSync = async () => {
     const freshEvents = await fetchEvents();
     const freshRegs   = await fetchRegistrations();
@@ -246,9 +297,7 @@ export function startPolling() {
     }
   };
 
-  _pollingTimer = setInterval(pollSync, 3000);
-
-  // Also listen for storage events from other tabs
+  // Cross-tab synchronization listener
   window.addEventListener("storage", (e) => {
     if (
       e.key === "ps4_events_v1" ||
@@ -258,6 +307,11 @@ export function startPolling() {
       pollSync();
     }
   });
+
+  if (getSupabaseClient()) return; // Realtime handles primary updates
+  if (_pollingTimer) return;
+
+  _pollingTimer = setInterval(pollSync, 3000);
 }
 
 export function stopPolling() {
