@@ -134,7 +134,50 @@ export async function fetchEvents() {
           latency,
           `Fetched ${data.length} events from Supabase`
         );
+        // Also persist to localStorage so other tabs / offline mode work
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(data));
         return data.map(mapEvent);
+      }
+
+      // DB connected but returned 0 rows → table was just cleared (e.g. system reset)
+      // Auto-seed the DB with default events so the UI is never empty
+      if (!error && data && data.length === 0) {
+        logNetworkConsole(
+          "GET",
+          "/rest/v1/events",
+          200,
+          latency,
+          "DB events table is empty — auto-seeding with defaults"
+        );
+        const seedPayloads = INITIAL_EVENTS.map((ev) => ({
+          name:        ev.name,
+          description: ev.description,
+          event_date:  ev.eventDate,
+          starts_at:   ev.startsAt,
+          ends_at:     ev.endsAt,
+          date:        ev.date,
+          raw_date:    ev.rawDate,
+          start_time:  ev.startTime,
+          end_time:    ev.endTime,
+          venue:       ev.venue,
+          seats:       ev.seats,
+          registered:  0,
+          status:      ev.status,
+        }));
+        try {
+          const { data: seeded } = await supabase
+            .from("events")
+            .insert(seedPayloads)
+            .select();
+          if (seeded && seeded.length > 0) {
+            logNetworkConsole("POST", "/rest/v1/events", 201, Date.now() - t0, `Auto-seeded ${seeded.length} events`);
+            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(seeded));
+            return seeded.map(mapEvent);
+          }
+        } catch { /* seed failed — fall through to INITIAL_EVENTS */ }
+        // Seed failed but still return INITIAL_EVENTS so UI shows events
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(INITIAL_EVENTS));
+        return INITIAL_EVENTS.map(mapEvent);
       }
 
       if (error) {
@@ -157,8 +200,14 @@ export async function fetchEvents() {
 
   const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
   if (saved) {
-    try { return JSON.parse(saved).map(mapEvent); } catch { /* corrupt data */ }
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.length > 0) {
+        return parsed.map(mapEvent);
+      }
+    } catch { /* corrupt data */ }
   }
+  // Always return seed data as last resort — never show empty events
   return INITIAL_EVENTS.map(mapEvent);
 }
 
@@ -419,10 +468,15 @@ export async function deleteEvent(eventId) {
 
 /**
  * Delete all events and re-seed the defaults (admin reset).
+ * Returns fresh seeded events (from DB if possible, else INITIAL_EVENTS).
  */
 export async function resetEvents() {
   const t0 = Date.now();
   const supabase = getSupabaseClient();
+
+  // Always save fallback to localStorage immediately so other tabs see data
+  const fallbackEvents = INITIAL_EVENTS.map(mapEvent);
+  localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(INITIAL_EVENTS));
 
   if (supabase) {
     try {
@@ -431,19 +485,19 @@ export async function resetEvents() {
       await supabase.from("events").delete().neq("id", 0);
 
       const seedPayloads = INITIAL_EVENTS.map((ev) => ({
-        name: ev.name,
+        name:        ev.name,
         description: ev.description,
-        event_date: ev.eventDate,
-        starts_at: ev.startsAt,
-        ends_at: ev.endsAt,
-        date: ev.date,
-        raw_date: ev.rawDate,
-        start_time: ev.startTime,
-        end_time: ev.endTime,
-        venue: ev.venue,
-        seats: ev.seats,
-        registered: 0,
-        status: ev.status,
+        event_date:  ev.eventDate,
+        starts_at:   ev.startsAt,
+        ends_at:     ev.endsAt,
+        date:        ev.date,
+        raw_date:    ev.rawDate,
+        start_time:  ev.startTime,
+        end_time:    ev.endTime,
+        venue:       ev.venue,
+        seats:       ev.seats,
+        registered:  0,
+        status:      ev.status,
       }));
 
       const { data, error } = await supabase
@@ -453,15 +507,21 @@ export async function resetEvents() {
 
       if (!error && data && data.length > 0) {
         logNetworkConsole("POST", "/rest/v1/events", 200, Date.now() - t0, `Events re-seeded successfully (${data.length} events)`);
+        // Update localStorage with actual DB IDs so students fetch the correct data
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(data));
         return data.map(mapEvent);
       }
 
       if (error) {
-        logNetworkConsole("POST", "/rest/v1/events", 400, Date.now() - t0, error.message);
+        logNetworkConsole("POST", "/rest/v1/events", 400, Date.now() - t0,
+          `Re-seed insert error: ${error.message} — using local fallback`);
       }
     } catch (err) {
-      logNetworkConsole("POST", "/rest/v1/events", 500, Date.now() - t0, err.message);
+      logNetworkConsole("POST", "/rest/v1/events", 500, Date.now() - t0,
+        `Re-seed exception: ${err.message} — using local fallback`);
     }
   }
-  return INITIAL_EVENTS.map(mapEvent);
+
+  // Return INITIAL_EVENTS as fallback — localStorage was already updated above
+  return fallbackEvents;
 }

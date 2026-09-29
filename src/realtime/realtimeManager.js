@@ -198,11 +198,16 @@ export function startRealtime() {
       (payload) => handleRealtimeRegistrationDelta(payload)
     )
     .on("broadcast", { event: "system_reset" }, async () => {
+      logNetworkConsole("WS", "/realtime/v1/system_reset", 200, 0, "System reset broadcast received — fetching fresh events…");
+      // Clear stale cached data immediately
       localStorage.removeItem("ps4_registrations_v1");
+      localStorage.removeItem("ps4_events_v1");
+      // Short delay so the admin's DB re-seed insert completes before we fetch
+      await new Promise((resolve) => setTimeout(resolve, 800));
       const freshEvents = await fetchEvents();
       setState({ events: freshEvents, registrations: [] });
       saveLocalState(freshEvents, []);
-      logNetworkConsole("WS", "/realtime/v1/system_reset", 200, 0, "System reset broadcast received");
+      logNetworkConsole("WS", "/realtime/v1/system_reset", 200, 0, `System reset applied — ${freshEvents.length} events loaded`);
     })
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
