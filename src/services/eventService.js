@@ -175,7 +175,6 @@ export async function createEvent(newEvent) {
   const endsAt    = newEvent.endsAt    || toIsoTimestamp(eventDate, newEvent.endTime || "05:00 PM");
 
   const payload = {
-    id:          newEvent.id,
     name:        newEvent.name,
     description: newEvent.description || "",
     event_date:  eventDate,
@@ -427,28 +426,41 @@ export async function resetEvents() {
 
   if (supabase) {
     try {
+      // Clear all registrations and events in DB
+      await supabase.from("registrations").delete().neq("id", "0");
       await supabase.from("events").delete().neq("id", 0);
-      for (const ev of INITIAL_EVENTS) {
-        await supabase.from("events").insert([{
-          id: ev.id,
-          name: ev.name,
-          description: ev.description,
-          event_date: ev.eventDate,
-          starts_at: ev.startsAt,
-          ends_at: ev.endsAt,
-          date: ev.date,
-          raw_date: ev.rawDate,
-          start_time: ev.startTime,
-          end_time: ev.endTime,
-          venue: ev.venue,
-          seats: ev.seats,
-          registered: 0,
-          status: ev.status,
-        }]);
+
+      const seedPayloads = INITIAL_EVENTS.map((ev) => ({
+        name: ev.name,
+        description: ev.description,
+        event_date: ev.eventDate,
+        starts_at: ev.startsAt,
+        ends_at: ev.endsAt,
+        date: ev.date,
+        raw_date: ev.rawDate,
+        start_time: ev.startTime,
+        end_time: ev.endTime,
+        venue: ev.venue,
+        seats: ev.seats,
+        registered: 0,
+        status: ev.status,
+      }));
+
+      const { data, error } = await supabase
+        .from("events")
+        .insert(seedPayloads)
+        .select();
+
+      if (!error && data && data.length > 0) {
+        logNetworkConsole("POST", "/rest/v1/events", 200, Date.now() - t0, `Events re-seeded successfully (${data.length} events)`);
+        return data.map(mapEvent);
       }
-      logNetworkConsole("POST", "/rest/v1/rpc/reset_events", 200, Date.now() - t0, "Events re-seeded");
+
+      if (error) {
+        logNetworkConsole("POST", "/rest/v1/events", 400, Date.now() - t0, error.message);
+      }
     } catch (err) {
-      logNetworkConsole("POST", "/rest/v1/rpc/reset_events", 500, Date.now() - t0, err.message);
+      logNetworkConsole("POST", "/rest/v1/events", 500, Date.now() - t0, err.message);
     }
   }
   return INITIAL_EVENTS.map(mapEvent);
